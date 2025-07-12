@@ -281,12 +281,19 @@ export default function WeeklyAnalysis() {
     return (intensity * 100).toFixed(0) + '%'
   }
 
-  const getIntensityClass = (intensity: number): string => {
-    const percentage = intensity * 100
-    if (percentage >= 80) return 'intensity-high'
-    if (percentage >= 60) return 'intensity-medium'
-    if (percentage >= 40) return 'intensity-low'
-    return 'intensity-none'
+  const getPerformanceClass = (actualValue: number, targetValue: number, type: string = ''): string => {
+    // Debug logging
+    console.log(`Performance check - ${type}:`, { actualValue, targetValue, percentage: targetValue > 0 ? (actualValue / targetValue) * 100 : 0 })
+    
+    if (targetValue === 0 || targetValue === null || targetValue === undefined) {
+      return 'performance-none'
+    }
+    
+    const percentage = (actualValue / targetValue) * 100
+    
+    if (percentage < 20) return 'performance-critical'  // Yellow - Very low performance
+    if (percentage >= 100) return 'performance-excellent'  // Green - Meets or exceeds target
+    return 'performance-below'  // Red - Below target but above 20%
   }
 
   if (loading) {
@@ -466,10 +473,10 @@ export default function WeeklyAnalysis() {
                       <td key={week} className="performance-cell">
                         {data ? (
                           <div className="performance-content">
-                            <div className="distance-value" style={{ fontWeight: 600 }}>
+                            <div className={`distance-badge ${getPerformanceClass(data.total_distance, data.target_km * 1000, 'distance')}`}>
                               {formatDistance(data.total_distance)}
                             </div>
-                            <div className={`intensity-badge ${getIntensityClass(data.vir_intensity)}`}>
+                            <div className={`intensity-badge ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity, 'intensity')}`}>
                               {formatIntensity(data.vir_intensity)}
                             </div>
                           </div>
@@ -491,7 +498,7 @@ export default function WeeklyAnalysis() {
         <ul>
           <li><strong>Targets Row:</strong> Click on target values to edit weekly targets for all players</li>
           <li><strong>Performance Rows:</strong> Show actual distance and intensity scores achieved by each player</li>
-          <li><strong>Intensity Colors:</strong> Red (≥80%), Yellow (≥60%), Green (≥40%), Gray (&lt;40%)</li>
+          <li><strong>Performance Colors:</strong> Green (≥100% of target), Red (20-99% of target), Yellow (&lt;20% of target)</li>
           <li><strong>Target Format:</strong> Distance in kilometers, Intensity as percentage</li>
         </ul>
       </div>
