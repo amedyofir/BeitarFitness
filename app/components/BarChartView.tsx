@@ -10,6 +10,7 @@ import {
   BarElement,
   BarController,
   LineElement,
+  LineController,
   PointElement,
   Title,
   Tooltip,
@@ -19,13 +20,14 @@ import {
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
 
-// Register Chart.js components including BarController for production deployment
+// Register Chart.js components including BarController and LineController for production deployment
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
   BarController,
   LineElement,
+  LineController,
   PointElement,
   Title,
   Tooltip,
