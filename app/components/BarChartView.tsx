@@ -18,6 +18,7 @@ import {
   InteractionItem,
   ScatterController,
 } from 'chart.js'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Chart } from 'react-chartjs-2'
 
 // Register Chart.js components including BarController and LineController for production deployment
@@ -32,7 +33,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ScatterController
+  ScatterController,
+  ChartDataLabels
 )
 
 interface WeeklyData {
@@ -74,11 +76,23 @@ export default function BarChartView() {
   const [weeks, setWeeks] = useState<string[]>([])
   const [players, setPlayers] = useState<string[]>([])
   const [selectedWeek, setSelectedWeek] = useState<string>('')
+  const [isMobile, setIsMobile] = useState(false)
   
   // Note editing states
   const [editingNote, setEditingNote] = useState<{ player: string; week: string; notes: string } | null>(null)
   const [editingMissingNote, setEditingMissingNote] = useState<{ player: string; week: string; notes: string } | null>(null)
 
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Helper function to get week start date from a date
   const getWeekStartDate = (date: Date): Date => {
@@ -488,7 +502,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -570,7 +597,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -647,7 +687,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -724,7 +777,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -801,7 +867,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -878,7 +957,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -955,7 +1047,20 @@ export default function BarChartView() {
           pointRadius: 0,
           pointHoverRadius: 0,
           fill: false,
-          borderDash: [5, 5]
+          borderDash: [5, 5],
+          datalabels: {
+            display: function(context: any) {
+              return isMobile && context.dataIndex === 0
+            },
+            color: '#FFD700',
+            font: {
+              size: 8,
+              weight: 'bold' as const
+            },
+            formatter: (value: number) => Math.round(value),
+            anchor: 'end' as const,
+            align: 'top' as const
+          }
         },
         {
           label: 'Has Notes',
@@ -979,24 +1084,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Player Performance - ${selectedWeek}`,
+        text: isMobile ? 'Distance' : `Distance - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1061,9 +1173,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1072,23 +1186,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Distance (m)',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1097,24 +1221,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Meterage per Minute - ${selectedWeek}`,
+        text: isMobile ? 'Meterage per Minute' : `Meterage per Minute - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1185,9 +1316,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1196,23 +1329,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Meterage per Minute (m/min)',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1221,24 +1364,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `High Speed Distance - ${selectedWeek}`,
+        text: isMobile ? 'High Speed Distance' : `High Speed Distance - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1301,9 +1451,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1312,23 +1464,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'High Speed Distance (m)',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1337,24 +1499,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Sprint Distance - ${selectedWeek}`,
+        text: isMobile ? 'Sprint Distance' : `Sprint Distance - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1417,9 +1586,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1428,23 +1599,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Sprint Distance (m)',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1453,24 +1634,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Acceleration Efforts - ${selectedWeek}`,
+        text: isMobile ? 'Accelerations' : `Acceleration Efforts - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1533,9 +1721,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1544,23 +1734,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Acceleration Efforts',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1569,24 +1769,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Deceleration Efforts - ${selectedWeek}`,
+        text: isMobile ? 'Decelerations' : `Deceleration Efforts - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1649,9 +1856,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1660,23 +1869,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Deceleration Efforts',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1685,24 +1904,31 @@ export default function BarChartView() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        display: false // Default to false, individual datasets will override
+      },
       legend: {
-        position: 'top' as const,
+        position: isMobile ? 'bottom' as const : 'top' as const,
         labels: {
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 10 : 14,
             weight: 'bold' as const
-          }
+          },
+          padding: isMobile ? 8 : 12,
+          usePointStyle: true,
+          pointStyle: 'rect'
         }
       },
       title: {
         display: true,
-        text: `Maximum Velocity - ${selectedWeek}`,
+        text: isMobile ? 'Maximum Velocity' : `Maximum Velocity - ${selectedWeek}`,
         color: '#FFD700',
         font: {
-          size: 18,
+          size: isMobile ? 14 : 18,
           weight: 'bold' as const
-        }
+        },
+        padding: isMobile ? 10 : 20
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1765,9 +1991,11 @@ export default function BarChartView() {
         ticks: {
           color: '#FFD700',
           font: {
-            size: 12,
+            size: isMobile ? 4 : 12,
             weight: 'bold' as const
-          }
+          },
+          maxRotation: isMobile ? 90 : 45,
+          minRotation: isMobile ? 90 : 45
         },
         grid: {
           color: 'rgba(255, 215, 0, 0.1)'
@@ -1776,23 +2004,33 @@ export default function BarChartView() {
       y: {
         beginAtZero: true,
         ticks: {
+          display: !isMobile, // Hide y-axis ticks on mobile
           color: '#FFD700',
           font: {
-            size: 12
+            size: isMobile ? 10 : 12
           }
         },
         grid: {
+          display: !isMobile, // Hide y-axis grid lines on mobile
           color: 'rgba(255, 215, 0, 0.1)'
         },
         title: {
-          display: true,
+          display: !isMobile, // Hide y-axis title on mobile
           text: 'Maximum Velocity (km/h)',
           color: '#FFD700',
           font: {
-            size: 14,
+            size: isMobile ? 12 : 14,
             weight: 'bold' as const
           }
         }
+      }
+    },
+    layout: {
+      padding: {
+        left: isMobile ? 0 : 10,
+        right: isMobile ? 0 : 10,
+        top: isMobile ? 0 : 10,
+        bottom: isMobile ? 60 : 40
       }
     }
   }
@@ -1828,14 +2066,35 @@ export default function BarChartView() {
 
   return (
     <div className="bar-chart-view-section" style={{ position: 'relative' }}>
-      <div className="chart-controls">
-        <div className="week-selector">
-          <label htmlFor="week-select">Select Week:</label>
+      <div className="chart-controls" style={{ 
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 1rem' : '0'
+      }}>
+        <div className="week-selector" style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? '0.5rem' : '1rem'
+        }}>
+          <label htmlFor="week-select" style={{
+            fontSize: isMobile ? '14px' : '16px',
+            fontWeight: 'bold',
+            color: '#FFD700'
+          }}>Select Week:</label>
           <select
             id="week-select"
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(e.target.value)}
             className="week-select-dropdown"
+            style={{
+              fontSize: isMobile ? '14px' : '16px',
+              padding: isMobile ? '0.5rem' : '0.75rem',
+              borderRadius: '4px',
+              border: '1px solid #FFD700',
+              backgroundColor: '#1a1a1a',
+              color: '#FFD700',
+              width: isMobile ? '100%' : 'auto'
+            }}
           >
             {weeks.map((week, index) => (
               <option key={week} value={week}>
@@ -1846,57 +2105,99 @@ export default function BarChartView() {
         </div>
       </div>
 
-      <div className="chart-container">
+      <div className="chart-container" style={{
+        height: isMobile ? '400px' : '500px',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {chartData && (
           <Chart type="bar" data={chartData} options={chartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {meterageChartData && (
           <Chart type="bar" data={meterageChartData} options={meterageChartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {highSpeedChartData && (
           <Chart type="bar" data={highSpeedChartData} options={highSpeedChartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {sprintChartData && (
           <Chart type="bar" data={sprintChartData} options={sprintChartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {accelerationChartData && (
           <Chart type="bar" data={accelerationChartData} options={accelerationChartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {decelerationChartData && (
           <Chart type="bar" data={decelerationChartData} options={decelerationChartOptions} />
         )}
       </div>
 
-      <div className="chart-container" style={{ marginTop: '2rem' }}>
+      <div className="chart-container" style={{ 
+        height: isMobile ? '400px' : '500px',
+        marginTop: isMobile ? '1rem' : '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0 0.5rem' : '0'
+      }}>
         {maxVelocityChartData && (
           <Chart type="bar" data={maxVelocityChartData} options={maxVelocityChartOptions} />
         )}
       </div>
 
       {/* Note Management Section */}
-      <div className="note-management-section" style={{ marginTop: '2rem' }}>
-        <h3 style={{ color: '#FFD700', marginBottom: '1rem' }}>Player Notes - {selectedWeek}</h3>
+      <div className="note-management-section" style={{ 
+        marginTop: isMobile ? '1.5rem' : '2rem',
+        padding: isMobile ? '0 1rem' : '0'
+      }}>
+        <h3 style={{ 
+          color: '#FFD700', 
+          marginBottom: '1rem',
+          fontSize: isMobile ? '18px' : '24px',
+          textAlign: isMobile ? 'center' : 'left'
+        }}>Player Notes - {selectedWeek}</h3>
         
         <div className="notes-grid" style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-          gap: '1rem',
-          marginBottom: '2rem'
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(300px, 1fr))', 
+          gap: isMobile ? '0.75rem' : '1rem',
+          marginBottom: isMobile ? '1.5rem' : '2rem'
         }}>
           {players.map(player => {
             const playerWeekData = playerData[player]?.[selectedWeek]
@@ -1915,31 +2216,42 @@ export default function BarChartView() {
                 backgroundColor: hasData ? 'rgba(255, 215, 0, 0.1)' : 'rgba(128, 128, 128, 0.1)',
                 border: hasData ? '1px solid #FFD700' : '1px solid #666',
                 borderRadius: '8px',
-                padding: '1rem'
+                padding: isMobile ? '0.75rem' : '1rem'
               }}>
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'flex-start',
-                  marginBottom: '0.5rem'
+                  marginBottom: '0.5rem',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  gap: isMobile ? '0.5rem' : '0'
                 }}>
-                  <strong style={{ color: hasData ? '#FFD700' : '#999' }}>
+                  <strong style={{ 
+                    color: hasData ? '#FFD700' : '#999',
+                    fontSize: isMobile ? '14px' : '16px'
+                  }}>
                     {player}
                     {!hasData && ' (No training data)'}
                   </strong>
                   
                   {hasData ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '0.5rem',
+                      width: isMobile ? '100%' : 'auto'
+                    }}>
                       <button
                         onClick={() => startEditingNote(player, selectedWeek)}
                         style={{
-                          padding: '0.25rem 0.5rem',
+                          padding: isMobile ? '0.4rem 0.75rem' : '0.25rem 0.5rem',
                           backgroundColor: '#FFD700',
                           color: '#000',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '0.75rem'
+                          fontSize: isMobile ? '14px' : '12px',
+                          fontWeight: 'bold',
+                          flex: isMobile ? '1' : 'none'
                         }}
                       >
                         {notes ? 'Edit' : 'Add Note'}
@@ -1949,13 +2261,15 @@ export default function BarChartView() {
                         <button
                           onClick={() => deleteNote(player, selectedWeek)}
                           style={{
-                            padding: '0.25rem 0.5rem',
+                            padding: isMobile ? '0.4rem 0.75rem' : '0.25rem 0.5rem',
                             backgroundColor: '#dc3545',
                             color: '#fff',
                             border: 'none',
                             borderRadius: '4px',
                             cursor: 'pointer',
-                            fontSize: '0.75rem'
+                            fontSize: isMobile ? '14px' : '12px',
+                            fontWeight: 'bold',
+                            flex: isMobile ? '1' : 'none'
                           }}
                         >
                           Delete
@@ -1966,13 +2280,15 @@ export default function BarChartView() {
                     <button
                       onClick={() => startEditingMissingNote(player, selectedWeek)}
                       style={{
-                        padding: '0.25rem 0.5rem',
+                        padding: isMobile ? '0.4rem 0.75rem' : '0.25rem 0.5rem',
                         backgroundColor: '#6c757d',
                         color: '#fff',
                         border: 'none',
                         borderRadius: '4px',
                         cursor: 'pointer',
-                        fontSize: '0.75rem'
+                        fontSize: isMobile ? '14px' : '12px',
+                        fontWeight: 'bold',
+                        width: isMobile ? '100%' : 'auto'
                       }}
                     >
                       Add Note
@@ -1982,8 +2298,9 @@ export default function BarChartView() {
                 
                 <div style={{ 
                   color: hasData ? '#fff' : '#ccc',
-                  fontSize: '0.9rem',
-                  fontStyle: notes ? 'normal' : 'italic'
+                  fontSize: isMobile ? '14px' : '16px',
+                  fontStyle: notes ? 'normal' : 'italic',
+                  lineHeight: '1.4'
                 }}>
                   {notes || 'No notes'}
                 </div>
@@ -2005,23 +2322,33 @@ export default function BarChartView() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000
+          zIndex: 1000,
+          padding: isMobile ? '1rem' : '2rem'
         }}>
           <div style={{
             backgroundColor: '#1a1a1a',
             border: '2px solid #FFD700',
             borderRadius: '8px',
-            padding: '2rem',
-            maxWidth: '500px',
-            width: '90%'
+            padding: isMobile ? '1.5rem' : '2rem',
+            maxWidth: isMobile ? '100%' : '500px',
+            width: isMobile ? '100%' : '90%',
+            maxHeight: isMobile ? '90vh' : 'auto',
+            overflowY: isMobile ? 'auto' : 'visible'
           }}>
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              marginBottom: '1rem'
+              marginBottom: '1rem',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: isMobile ? '0.5rem' : '0'
             }}>
-              <h3 style={{ color: '#FFD700', margin: 0 }}>
+              <h3 style={{ 
+                color: '#FFD700', 
+                margin: 0,
+                fontSize: isMobile ? '18px' : '20px',
+                textAlign: isMobile ? 'center' : 'left'
+              }}>
                 Edit Note - {editingNote.player}
               </h3>
               <button
@@ -2031,10 +2358,11 @@ export default function BarChartView() {
                   border: 'none',
                   color: '#FFD700',
                   cursor: 'pointer',
-                  fontSize: '1.5rem'
+                  fontSize: isMobile ? '20px' : '24px',
+                  padding: '0.25rem'
                 }}
               >
-                <X size={24} />
+                <X size={isMobile ? 20 : 24} />
               </button>
             </div>
             
@@ -2044,29 +2372,36 @@ export default function BarChartView() {
               placeholder="Enter notes for this player..."
               style={{
                 width: '100%',
-                minHeight: '100px',
-                padding: '0.5rem',
+                minHeight: isMobile ? '120px' : '100px',
+                padding: isMobile ? '0.75rem' : '0.5rem',
                 backgroundColor: '#2a2a2a',
                 color: '#fff',
                 border: '1px solid #FFD700',
                 borderRadius: '4px',
-                fontSize: '0.9rem',
+                fontSize: isMobile ? '16px' : '14px',
                 fontFamily: 'inherit',
                 resize: 'vertical',
                 marginBottom: '1rem'
               }}
             />
             
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '1rem', 
+              justifyContent: 'flex-end',
+              flexDirection: isMobile ? 'column' : 'row'
+            }}>
               <button
                 onClick={() => setEditingNote(null)}
                 style={{
-                  padding: '0.5rem 1rem',
+                  padding: isMobile ? '0.75rem 1rem' : '0.5rem 1rem',
                   backgroundColor: '#6c757d',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  fontSize: isMobile ? '16px' : '14px',
+                  fontWeight: 'bold'
                 }}
               >
                 Cancel
@@ -2074,13 +2409,14 @@ export default function BarChartView() {
               <button
                 onClick={() => saveNote(editingNote.player, editingNote.week, editingNote.notes)}
                 style={{
-                  padding: '0.5rem 1rem',
+                  padding: isMobile ? '0.75rem 1rem' : '0.5rem 1rem',
                   backgroundColor: '#FFD700',
                   color: '#000',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  fontSize: isMobile ? '16px' : '14px'
                 }}
               >
                 Save Note
@@ -2102,23 +2438,33 @@ export default function BarChartView() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000
+          zIndex: 1000,
+          padding: isMobile ? '1rem' : '2rem'
         }}>
           <div style={{
             backgroundColor: '#1a1a1a',
             border: '2px solid #666',
             borderRadius: '8px',
-            padding: '2rem',
-            maxWidth: '500px',
-            width: '90%'
+            padding: isMobile ? '1.5rem' : '2rem',
+            maxWidth: isMobile ? '100%' : '500px',
+            width: isMobile ? '100%' : '90%',
+            maxHeight: isMobile ? '90vh' : 'auto',
+            overflowY: isMobile ? 'auto' : 'visible'
           }}>
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              marginBottom: '1rem'
+              marginBottom: '1rem',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: isMobile ? '0.5rem' : '0'
             }}>
-              <h3 style={{ color: '#999', margin: 0 }}>
+              <h3 style={{ 
+                color: '#999', 
+                margin: 0,
+                fontSize: isMobile ? '16px' : '18px',
+                textAlign: isMobile ? 'center' : 'left'
+              }}>
                 Add Note - {editingMissingNote.player} (No training data)
               </h3>
               <button
@@ -2128,10 +2474,11 @@ export default function BarChartView() {
                   border: 'none',
                   color: '#999',
                   cursor: 'pointer',
-                  fontSize: '1.5rem'
+                  fontSize: isMobile ? '20px' : '24px',
+                  padding: '0.25rem'
                 }}
               >
-                <X size={24} />
+                <X size={isMobile ? 20 : 24} />
               </button>
             </div>
             
@@ -2141,29 +2488,36 @@ export default function BarChartView() {
               placeholder="Enter notes for this player..."
               style={{
                 width: '100%',
-                minHeight: '100px',
-                padding: '0.5rem',
+                minHeight: isMobile ? '120px' : '100px',
+                padding: isMobile ? '0.75rem' : '0.5rem',
                 backgroundColor: '#2a2a2a',
                 color: '#fff',
                 border: '1px solid #666',
                 borderRadius: '4px',
-                fontSize: '0.9rem',
+                fontSize: isMobile ? '16px' : '14px',
                 fontFamily: 'inherit',
                 resize: 'vertical',
                 marginBottom: '1rem'
               }}
             />
             
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '1rem', 
+              justifyContent: 'flex-end',
+              flexDirection: isMobile ? 'column' : 'row'
+            }}>
               <button
                 onClick={() => setEditingMissingNote(null)}
                 style={{
-                  padding: '0.5rem 1rem',
+                  padding: isMobile ? '0.75rem 1rem' : '0.5rem 1rem',
                   backgroundColor: '#6c757d',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  fontSize: isMobile ? '16px' : '14px',
+                  fontWeight: 'bold'
                 }}
               >
                 Cancel
@@ -2171,13 +2525,14 @@ export default function BarChartView() {
               <button
                 onClick={saveMissingNote}
                 style={{
-                  padding: '0.5rem 1rem',
+                  padding: isMobile ? '0.75rem 1rem' : '0.5rem 1rem',
                   backgroundColor: '#6c757d',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  fontSize: isMobile ? '16px' : '14px'
                 }}
               >
                 Save Note

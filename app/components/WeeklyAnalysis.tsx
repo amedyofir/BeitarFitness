@@ -525,13 +525,13 @@ export default function WeeklyAnalysis() {
           <table className="data-table">
             <thead>
               <tr>
-                <th className="sticky-column">Player</th>
+                <th>Player</th>
                 {weeks.map(week => (
                   <th key={week}>{week}</th>
                 ))}
               </tr>
               <tr>
-                <th className="sticky-column week-number-header">Week #</th>
+                <th className="week-number-header">Week #</th>
                 {weeks.map((week, index) => (
                   <th key={`week-${index}`} className="week-number-header">
                     Week {index + 1}
@@ -543,7 +543,7 @@ export default function WeeklyAnalysis() {
 
               {/* Target Row */}
               <tr className="target-row-table">
-                <td className="sticky-column target-label">TARGETS</td>
+                <td className="target-label">TARGETS</td>
                 {weeks.map(week => {
                   const data = weekTargets[week]
                   const isEditing = editingTarget && editingTarget.week === week
@@ -610,7 +610,7 @@ export default function WeeklyAnalysis() {
               
               {/* Average Row */}
               <tr className="average-row-table">
-                <td className="sticky-column average-label">AVERAGE</td>
+                <td className="average-label">AVERAGE</td>
                 {weeks.map(week => {
                   // Calculate average for players who have data in this week (excluding zeros)
                   const playersWithData = players.filter(player => playerData[player]?.[week])
@@ -656,7 +656,7 @@ export default function WeeklyAnalysis() {
               {/* Player Performance Rows */}
               {players.map(player => (
                 <tr key={player}>
-                  <td className="sticky-column player-name">{player}</td>
+                  <td className="player-name">{player}</td>
                   {weeks.map(week => {
                     const data = playerData[player]?.[week]
                     

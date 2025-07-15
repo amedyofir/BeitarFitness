@@ -10,7 +10,7 @@ import BarChartView from './components/BarChartView'
 import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart } from 'lucide-react'
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts'>('charts')
 
   return (
     <div className="main-container">
@@ -75,7 +75,7 @@ export default function Home() {
               className={`tab-button ${activeTab === 'charts' ? 'active' : ''}`}
             >
               <BarChart />
-              Bar Charts
+              Dashboard
             </button>
           </nav>
 

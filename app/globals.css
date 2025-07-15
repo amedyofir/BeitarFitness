@@ -1516,9 +1516,6 @@ input[type="file"] {
   background: var(--glass-bg);
   border-top: 2px solid var(--primary-accent);
   border-bottom: 2px solid var(--primary-accent);
-  position: sticky;
-  top: 64px;
-  z-index: 8;
 }
 
 .target-row-table:hover {
@@ -1530,9 +1527,6 @@ input[type="file"] {
   background: rgba(106, 207, 127, 0.1);
   border-top: 1px solid var(--success-accent);
   border-bottom: 1px solid var(--success-accent);
-  position: sticky;
-  top: 96px;
-  z-index: 7;
 }
 
 .average-row-table:hover {
