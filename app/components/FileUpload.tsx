@@ -9,6 +9,9 @@ interface UploadStatus {
   status: 'idle' | 'uploading' | 'success' | 'error'
   message: string
   recordsUploaded?: number
+  filesProcessed?: number
+  totalFiles?: number
+  currentFile?: string
 }
 
 // Add date conversion function for Israeli date format (DD/MM/YYYY) to ISO format (YYYY-MM-DD)
@@ -37,6 +40,8 @@ export default function FileUpload() {
     message: ''
   })
   const [dragActive, setDragActive] = useState(false)
+  const [recentFiles, setRecentFiles] = useState<string[]>([])
+  const [lastUploadTime, setLastUploadTime] = useState<Date | null>(null)
 
   const handleDrag = (e: any) => {
     e.preventDefault()
@@ -53,14 +58,16 @@ export default function FileUpload() {
     e.stopPropagation()
     setDragActive(false)
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0])
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files) as File[]
+      handleFiles(files)
     }
   }
 
   const handleFileInput = (e: any) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0])
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files) as File[]
+      handleFiles(files)
     }
   }
 
@@ -89,78 +96,122 @@ export default function FileUpload() {
       hmld_gen2: parseFloat(row[17]) || 0,
       hmld_per_min_gen2: parseFloat(row[18]) || 0,
       target_km: parseInt(row[19]) || 0,
-      target_intensity: parseFloat(row[20]) || 0
-    })).filter(record => record.player_name && record.date) // Filter out empty rows
+      target_intensity: parseFloat(row[20]) || 0,
+      notes: row[21] || ''
+    })).filter(record => record.player_name && record.date && (record.period_name === 'Session' || record.period_name === 'NOTE_ONLY')) // Filter out empty rows and include Session and NOTE_ONLY records
   }
 
-  const handleFile = async (file: File) => {
-    if (!file.name.endsWith('.csv')) {
+  const handleFiles = async (files: File[]) => {
+    // Filter out non-CSV files
+    const csvFiles = files.filter(file => file.name.endsWith('.csv'))
+    
+    if (csvFiles.length === 0) {
       setUploadStatus({
         status: 'error',
-        message: 'Please upload a CSV file'
+        message: 'Please upload CSV files only'
       })
       return
     }
 
+    if (csvFiles.length !== files.length) {
+      console.warn(`Filtered out ${files.length - csvFiles.length} non-CSV files`)
+    }
+
     setUploadStatus({
       status: 'uploading',
-      message: 'Processing file...'
+      message: 'Processing files...',
+      totalFiles: csvFiles.length,
+      filesProcessed: 0
     })
 
-    Papa.parse(file, {
-      complete: async (results) => {
-        try {
-          const parsedData = parseCSVData(results.data)
-          
-          if (parsedData.length === 0) {
-            setUploadStatus({
-              status: 'error',
-              message: 'No valid data found in the file'
-            })
-            return
-          }
+    let totalRecords = 0
+    let processedFiles = 0
 
+    for (let i = 0; i < csvFiles.length; i++) {
+      const file = csvFiles[i]
+      
+      setUploadStatus(prev => ({
+        ...prev,
+        currentFile: file.name,
+        message: `Processing file ${i + 1} of ${csvFiles.length}: ${file.name}`
+      }))
+
+      try {
+        const records = await processFile(file)
+        
+        if (records.length > 0) {
           // Upload to Supabase
           const { data, error } = await supabase
             .from('weekly_load')
-            .insert(parsedData)
+            .insert(records)
 
           if (error) {
-            console.error('Supabase error:', error)
+            console.error('Supabase error for file', file.name, ':', error)
             setUploadStatus({
               status: 'error',
-              message: `Database error: ${error.message}`
+              message: `Database error in file "${file.name}": ${error.message}`
             })
-          } else {
-            setUploadStatus({
-              status: 'success',
-              message: 'Data uploaded successfully!',
-              recordsUploaded: parsedData.length
-            })
+            return
           }
-        } catch (error) {
-          console.error('Processing error:', error)
-          setUploadStatus({
-            status: 'error',
-            message: 'Error processing file. Please check the file format.'
-          })
+          
+          totalRecords += records.length
         }
-      },
-      error: (error) => {
-        console.error('Parse error:', error)
+        
+        processedFiles++
+        setUploadStatus(prev => ({
+          ...prev,
+          filesProcessed: processedFiles
+        }))
+        
+      } catch (error) {
+        console.error('Processing error for file', file.name, ':', error)
         setUploadStatus({
           status: 'error',
-          message: 'Error parsing CSV file'
+          message: `Error processing file "${file.name}". Please check the file format.`
         })
+        return
       }
+    }
+
+    // Store the recent files and upload time
+    setRecentFiles(csvFiles.map(file => file.name))
+    setLastUploadTime(new Date())
+
+    setUploadStatus({
+      status: 'success',
+      message: `Successfully uploaded ${csvFiles.length} file(s)!`,
+      recordsUploaded: totalRecords,
+      filesProcessed: csvFiles.length,
+      totalFiles: csvFiles.length
     })
   }
+
+  const processFile = async (file: File): Promise<WeeklyLoadData[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        complete: (results) => {
+          try {
+            const parsedData = parseCSVData(results.data)
+            resolve(parsedData)
+          } catch (error) {
+            reject(error)
+          }
+        },
+        error: (error) => {
+          reject(error)
+        }
+      })
+    })
+  }
+
+
 
   const resetUpload = () => {
     setUploadStatus({
       status: 'idle',
       message: ''
     })
+    // Don't clear recent files - keep them visible for reference
   }
 
   return (
@@ -180,11 +231,12 @@ export default function FileUpload() {
         {uploadStatus.status === 'idle' && (
           <>
             <Upload />
-            <h3>Drop your CSV file here, or click to browse</h3>
-            <p>Supports CSV files with fitness data</p>
+            <h3>Drop your CSV files here, or click to browse</h3>
+            <p>Supports multiple CSV files with fitness data</p>
             <input
               type="file"
               accept=".csv"
+              multiple
               onChange={handleFileInput}
               id="file-upload"
             />
@@ -205,9 +257,9 @@ export default function FileUpload() {
           <div className="status-message success">
             <CheckCircle />
             <h3>{uploadStatus.message}</h3>
-            <p>{uploadStatus.recordsUploaded} records uploaded</p>
+            <p>{uploadStatus.recordsUploaded} records from {uploadStatus.filesProcessed} file(s) uploaded</p>
             <button onClick={resetUpload} className="btn btn-success">
-              Upload Another File
+              Upload More Files
             </button>
           </div>
         )}
@@ -224,10 +276,33 @@ export default function FileUpload() {
         )}
       </div>
 
+      {recentFiles.length > 0 && lastUploadTime && (
+        <div className="recent-files-section">
+          <h4>Recent Upload:</h4>
+          <div className="recent-files-info">
+            <p className="upload-time">
+              <strong>Uploaded:</strong> {lastUploadTime.toLocaleDateString()} at {lastUploadTime.toLocaleTimeString()}
+            </p>
+            <div className="file-list">
+              <strong>Files:</strong>
+              <ul>
+                {recentFiles.map((fileName, index) => (
+                  <li key={index} className="file-item">
+                    📄 {fileName}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="notes-section">
         <h4>Important Notes:</h4>
         <ul>
           <li>Data parsing starts from row 11 (row 10 contains headers)</li>
+          <li>Supports multiple CSV files - select multiple or drag multiple files</li>
+          <li>Column 22 (index 21) is used for player notes/explanations</li>
           <li>All uploaded data is stored in the database</li>
           <li>Each upload represents a new session</li>
           <li>Make sure your CSV follows the expected format</li>

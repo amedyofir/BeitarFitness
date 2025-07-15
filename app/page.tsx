@@ -3,10 +3,14 @@
 import React, { useState } from 'react'
 import FileUpload from './components/FileUpload'
 import WeeklyAnalysis from './components/WeeklyAnalysis'
-import { Upload, BarChart3 } from 'lucide-react'
+import AllDataView from './components/AllDataView'
+import DistanceView from './components/DistanceView'
+import IntensityView from './components/IntensityView'
+import BarChartView from './components/BarChartView'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart } from 'lucide-react'
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'analysis'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts'>('upload')
 
   return (
     <div className="main-container">
@@ -17,7 +21,7 @@ export default function Home() {
             alt="Beitar Jerusalem Logo" 
             className="navbar-logo"
           />
-          <h1 className="navbar-title">Beitar Jerusalem Data</h1>
+          <h1 className="navbar-title">Beitar Jerusalem Scouting & Data</h1>
         </div>
       </nav>
       
@@ -45,11 +49,43 @@ export default function Home() {
               <BarChart3 />
               Weekly Analysis
             </button>
+            <button
+              onClick={() => setActiveTab('alldata')}
+              className={`tab-button ${activeTab === 'alldata' ? 'active' : ''}`}
+            >
+              <Grid3X3 />
+              All Data
+            </button>
+            <button
+              onClick={() => setActiveTab('distance')}
+              className={`tab-button ${activeTab === 'distance' ? 'active' : ''}`}
+            >
+              <MapPin />
+              Distance Only
+            </button>
+            <button
+              onClick={() => setActiveTab('intensity')}
+              className={`tab-button ${activeTab === 'intensity' ? 'active' : ''}`}
+            >
+              <Zap />
+              Intensity Only
+            </button>
+            <button
+              onClick={() => setActiveTab('charts')}
+              className={`tab-button ${activeTab === 'charts' ? 'active' : ''}`}
+            >
+              <BarChart />
+              Bar Charts
+            </button>
           </nav>
 
           <div className="tab-content">
             {activeTab === 'upload' && <FileUpload />}
             {activeTab === 'analysis' && <WeeklyAnalysis />}
+            {activeTab === 'alldata' && <AllDataView />}
+            {activeTab === 'distance' && <DistanceView />}
+            {activeTab === 'intensity' && <IntensityView />}
+            {activeTab === 'charts' && <BarChartView />}
           </div>
         </div>
       </div>

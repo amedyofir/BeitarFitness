@@ -28,4 +28,5 @@ export type WeeklyLoadData = {
   hmld_per_min_gen2: number
   target_km: number
   target_intensity: number
+  notes?: string
 } 

@@ -12,6 +12,7 @@ interface WeeklyData {
   target_km: number
   target_intensity: number
   date: string
+  notes?: string
 }
 
 interface PlayerWeeklyData {
@@ -21,6 +22,7 @@ interface PlayerWeeklyData {
       vir_intensity: number
       target_km: number
       target_intensity: number
+      notes?: string
     }
   }
 }
@@ -31,6 +33,20 @@ interface EditingTarget {
   target_intensity: number
 }
 
+interface EditingNote {
+  player: string
+  week: string
+  notes: string
+}
+
+interface EditingMissingNote {
+  player: string
+  week: string
+  notes: string
+}
+
+
+
 export default function WeeklyAnalysis() {
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [playerData, setPlayerData] = useState<PlayerWeeklyData>({})
@@ -39,13 +55,20 @@ export default function WeeklyAnalysis() {
   const [weeks, setWeeks] = useState<string[]>([])
   const [players, setPlayers] = useState<string[]>([])
   const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(null)
+  const [editingNote, setEditingNote] = useState<EditingNote | null>(null)
+  const [editingMissingNote, setEditingMissingNote] = useState<EditingMissingNote | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isUpdatingNote, setIsUpdatingNote] = useState(false)
+  const [isUpdatingMissingNote, setIsUpdatingMissingNote] = useState(false)
   const [weekTargets, setWeekTargets] = useState<{[week: string]: {target_km: number, target_intensity: number}}>({})
+
 
   // Helper function to get week start date from a date
   const getWeekStartDate = (date: Date): Date => {
     const weekStart = new Date(date)
-    weekStart.setDate(date.getDate() - date.getDay())
+    const dayOfWeek = weekStart.getDay() // 0 = Sunday, 1 = Monday, etc.
+    weekStart.setDate(weekStart.getDate() - dayOfWeek)
+    weekStart.setHours(0, 0, 0, 0) // Reset time to start of day
     return weekStart
   }
 
@@ -61,7 +84,32 @@ export default function WeeklyAnalysis() {
   // Helper function to extract start date from week string
   const getStartDateFromWeekString = (weekString: string): Date => {
     const startDateStr = weekString.split(' - ')[0]
-    return new Date(startDateStr)
+    console.log('Original week string:', weekString)
+    console.log('Start date string:', startDateStr)
+    
+    // Parse the date string more carefully to avoid timezone issues
+    const dateParts = startDateStr.split(' ')
+    const month = dateParts[0]
+    const day = parseInt(dateParts[1].replace(',', ''))
+    const year = parseInt(dateParts[2])
+    
+    console.log('Parsed components:', { month, day, year })
+    
+    // Create date in local timezone at noon to avoid timezone edge cases
+    const date = new Date(year, getMonthIndex(month), day, 12, 0, 0, 0)
+    
+    console.log('Final date:', date)
+    console.log('Day of week:', date.getDay(), '(0=Sunday)')
+    console.log('Date for database:', date.toISOString().split('T')[0])
+    
+    return date
+  }
+
+  // Helper function to get month index from month name
+  const getMonthIndex = (monthName: string): number => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+    return months.indexOf(monthName)
   }
 
   useEffect(() => {
@@ -107,7 +155,8 @@ export default function WeeklyAnalysis() {
           total_distance: record.total_distance,
           vir_intensity: record.vir_intensity,
           target_km: record.target_km,
-          target_intensity: record.target_intensity
+          target_intensity: record.target_intensity,
+          notes: record.notes || ''
         }
         
         // Store week targets (they should be the same for all players in a week)
@@ -184,6 +233,8 @@ export default function WeeklyAnalysis() {
       // Use the first record's target values (they should be consistent for the same player/week)
       const targetKm = records[0].target_km || 0
       const targetIntensity = records[0].target_intensity || 0
+      // Combine notes from all records for this player/week
+      const allNotes = records.map(r => r.notes).filter(note => note && note.trim()).join('; ')
       
       result.push({
         player_name,
@@ -192,7 +243,8 @@ export default function WeeklyAnalysis() {
         vir_intensity: virIntensity,
         target_km: targetKm,
         target_intensity: targetIntensity,
-        date: records[0].date
+        date: records[0].date,
+        notes: allNotes
       })
     })
 
@@ -273,6 +325,149 @@ export default function WeeklyAnalysis() {
     }
   }
 
+  // Note editing functions
+  const startEditingNote = (player: string, week: string) => {
+    const currentNotes = playerData[player]?.[week]?.notes || ''
+    setEditingNote({
+      player,
+      week,
+      notes: currentNotes
+    })
+  }
+
+  const cancelEditingNote = () => {
+    setEditingNote(null)
+  }
+
+  const saveNote = async () => {
+    if (!editingNote) return
+
+    setIsUpdatingNote(true)
+    try {
+      // Update all records for this player/week with the new note
+      const weekStart = getStartDateFromWeekString(editingNote.week)
+      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+      
+      const { error } = await supabase
+        .from('weekly_load')
+        .update({ notes: editingNote.notes })
+        .eq('player_name', editingNote.player)
+        .gte('date', weekStart.toISOString().split('T')[0])
+        .lt('date', weekEnd.toISOString().split('T')[0])
+
+      if (error) {
+        console.error('Error updating note:', error)
+        alert('Failed to update note')
+        return
+      }
+
+      // Update local state
+      setPlayerData(prevData => ({
+        ...prevData,
+        [editingNote.player]: {
+          ...prevData[editingNote.player],
+          [editingNote.week]: {
+            ...prevData[editingNote.player][editingNote.week],
+            notes: editingNote.notes
+          }
+        }
+      }))
+
+      setEditingNote(null)
+    } catch (error) {
+      console.error('Error saving note:', error)
+      alert('Failed to save note')
+    } finally {
+      setIsUpdatingNote(false)
+    }
+  }
+
+  // Missing week note functions
+  const startEditingMissingNote = (player: string, week: string) => {
+    setEditingMissingNote({
+      player,
+      week,
+      notes: ''
+    })
+  }
+
+  const cancelEditingMissingNote = () => {
+    setEditingMissingNote(null)
+  }
+
+  const saveMissingNote = async () => {
+    if (!editingMissingNote) return
+
+    setIsUpdatingMissingNote(true)
+    try {
+      // Get the first date of the week
+      const weekStart = getStartDateFromWeekString(editingMissingNote.week)
+      
+      // Create a new record with minimal data and the note
+      const newRecord = {
+        player_name: editingMissingNote.player,
+        period_name: 'NOTE_ONLY',
+        period_number: 0,
+        date: weekStart.toISOString().split('T')[0],
+        day_name: weekStart.toLocaleDateString('en-US', { weekday: 'long' }),
+        activity_name: 'Missing Week Note',
+        total_duration: '00:00:00',
+        total_distance: 0,
+        maximum_velocity: 0,
+        acceleration_b3_efforts_gen2: 0,
+        deceleration_b3_efforts_gen2: 0,
+        rhie_total_bouts: 0,
+        meterage_per_minute: 0,
+        high_speed_running_total_distance_b6: 0,
+        velocity_b4_plus_total_efforts_gen2: 0,
+        very_high_speed_running_total_distance_b7: 0,
+        running_imbalance: 0,
+        hmld_gen2: 0,
+        hmld_per_min_gen2: 0,
+        target_km: weekTargets[editingMissingNote.week]?.target_km || 0,
+        target_intensity: weekTargets[editingMissingNote.week]?.target_intensity || 0,
+        notes: editingMissingNote.notes
+      }
+
+      const { error } = await supabase
+        .from('weekly_load')
+        .insert([newRecord])
+
+      if (error) {
+        console.error('Error creating missing note record:', error)
+        alert('Failed to save note')
+        return
+      }
+
+      // Update local state to show the new note
+      setPlayerData(prevData => ({
+        ...prevData,
+        [editingMissingNote.player]: {
+          ...prevData[editingMissingNote.player],
+          [editingMissingNote.week]: {
+            total_distance: 0,
+            vir_intensity: 0,
+            target_km: weekTargets[editingMissingNote.week]?.target_km || 0,
+            target_intensity: weekTargets[editingMissingNote.week]?.target_intensity || 0,
+            notes: editingMissingNote.notes
+          }
+        }
+      }))
+
+      setEditingMissingNote(null)
+      
+      // Optionally refresh the data to ensure consistency
+      // fetchWeeklyData()
+    } catch (error) {
+      console.error('Error saving missing note:', error)
+      alert('Failed to save note')
+    } finally {
+      setIsUpdatingMissingNote(false)
+    }
+  }
+
+
+
   const formatDistance = (distance: number): string => {
     return distance.toFixed(0) + 'm'
   }
@@ -319,55 +514,11 @@ export default function WeeklyAnalysis() {
 
   return (
     <div className="analysis-section">
-      <h2>Weekly Analysis</h2>
-      <p>
-        Player performance by week showing total distance and intensity scores
-      </p>
-
-      {/* Summary Cards */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-content">
-            <div className="stat-icon">
-              <Users color="var(--primary-accent)" />
-            </div>
-            <div className="stat-info">
-              <h3>Total Players</h3>
-              <p>{players.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-content">
-            <div className="stat-icon">
-              <Calendar color="var(--success-accent)" />
-            </div>
-            <div className="stat-info">
-              <h3>Total Weeks</h3>
-              <p>{weeks.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-content">
-            <div className="stat-icon">
-              <TrendingUp color="var(--secondary-accent)" />
-            </div>
-            <div className="stat-info">
-              <h3>Total Records</h3>
-              <p>{weeklyData.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Weekly Analysis Table */}
       <div className="table-container">
         <div className="table-header">
           <h3>Player Weekly Performance</h3>
-          <p>Click on target values to edit weekly targets</p>
+          <p>Click on target values to edit weekly targets • Click on notes to add explanations • Click on missing weeks to add notes</p>
         </div>
         
         <div className="table-wrapper">
@@ -389,6 +540,7 @@ export default function WeeklyAnalysis() {
               </tr>
             </thead>
             <tbody>
+
               {/* Target Row */}
               <tr className="target-row-table">
                 <td className="sticky-column target-label">TARGETS</td>
@@ -407,35 +559,31 @@ export default function WeeklyAnalysis() {
                               ...editingTarget,
                               target_km: parseInt(e.target.value) || 0
                             })}
-                            className="target-input-inline"
-                            placeholder="Distance (m)"
-                            min="0"
+                            className="target-input-km"
+                            placeholder="KM"
                           />
                           <input
                             type="number"
                             value={editingTarget.target_intensity}
                             onChange={(e) => setEditingTarget({
                               ...editingTarget,
-                              target_intensity: parseFloat(e.target.value) || 0
+                              target_intensity: parseInt(e.target.value) || 0
                             })}
-                            className="target-input-inline"
-                            placeholder="Intensity (%)"
-                            min="0"
-                            max="100"
-                            step="0.1"
+                            className="target-input-intensity"
+                            placeholder="Intensity"
                           />
-                          <div className="target-buttons-inline">
+                          <div className="target-buttons">
                             <button
                               onClick={saveTarget}
                               disabled={isUpdating}
-                              className="btn-save-inline"
-                              title="Save"
+                              className="btn-save-target"
+                              title="Save target"
                             >
                               {isUpdating ? <Loader2 className="spin" /> : <Save />}
                             </button>
                             <button
                               onClick={cancelEditingTarget}
-                              className="btn-cancel-inline"
+                              className="btn-cancel-target"
                               title="Cancel"
                             >
                               <X />
@@ -444,18 +592,61 @@ export default function WeeklyAnalysis() {
                         </div>
                       ) : (
                         <div 
-                          className="target-display-inline"
+                          className="target-display"
                           onClick={() => startEditingTarget(week)}
-                          title="Click to edit targets"
                         >
-                          <div className="target-distance-inline">
-                            Target Distance: {(data?.target_km || 0) * 1000}m
+                          <div className="target-badge distance-target">
+                            {data?.target_km || 0} KM
                           </div>
-                          <div className="target-intensity-inline">
-                            Target Intensity: {data?.target_intensity || 0}%
+                          <div className="target-badge intensity-target">
+                            {data?.target_intensity || 0}%
                           </div>
-                          <Edit2 className="edit-icon-inline" />
                         </div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+              
+              {/* Average Row */}
+              <tr className="average-row-table">
+                <td className="sticky-column average-label">AVERAGE</td>
+                {weeks.map(week => {
+                  // Calculate average for players who have data in this week (excluding zeros)
+                  const playersWithData = players.filter(player => playerData[player]?.[week])
+                  
+                  // Filter out zero values for distance
+                  const validDistances = playersWithData
+                    .map(player => playerData[player][week]?.total_distance || 0)
+                    .filter(distance => distance > 0)
+                  
+                  // Filter out zero values for intensity
+                  const validIntensities = playersWithData
+                    .map(player => playerData[player][week]?.vir_intensity || 0)
+                    .filter(intensity => intensity > 0)
+                  
+                  const totalDistance = validDistances.reduce((sum, distance) => sum + distance, 0)
+                  const totalIntensity = validIntensities.reduce((sum, intensity) => sum + intensity, 0)
+                  
+                  const avgDistance = validDistances.length > 0 ? totalDistance / validDistances.length : 0
+                  const avgIntensity = validIntensities.length > 0 ? totalIntensity / validIntensities.length : 0
+                  
+                  const weekTargetData = weekTargets[week]
+                  
+                  return (
+                    <td key={week} className="average-cell-table">
+                      {(validDistances.length > 0 || validIntensities.length > 0) ? (
+                        <div className="average-content">
+                          <div className={`distance-badge ${getPerformanceClass(avgDistance, (weekTargetData?.target_km || 0) * 1000, 'distance')}`}>
+                            {formatDistance(avgDistance)}
+                          </div>
+                          <div className={`intensity-badge ${getPerformanceClass(avgIntensity * 100, weekTargetData?.target_intensity || 0, 'intensity')}`}>
+                            {formatIntensity(avgIntensity)}
+                          </div>
+                          <div className="player-count">({Math.max(validDistances.length, validIntensities.length)} players)</div>
+                        </div>
+                      ) : (
+                        <div className="no-data-average">No data</div>
                       )}
                     </td>
                   )
@@ -473,15 +664,102 @@ export default function WeeklyAnalysis() {
                       <td key={week} className="performance-cell">
                         {data ? (
                           <div className="performance-content">
-                            <div className={`distance-badge ${getPerformanceClass(data.total_distance, data.target_km * 1000, 'distance')}`}>
+                            <div className="distance-badge">
                               {formatDistance(data.total_distance)}
                             </div>
-                            <div className={`intensity-badge ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity, 'intensity')}`}>
+                            <div className="intensity-badge">
                               {formatIntensity(data.vir_intensity)}
+                            </div>
+                            {/* Notes Section */}
+                            <div className="notes-cell">
+                              {editingNote && editingNote.player === player && editingNote.week === week ? (
+                                <div className="note-editing">
+                                  <textarea
+                                    value={editingNote.notes}
+                                    onChange={(e) => setEditingNote({
+                                      ...editingNote,
+                                      notes: e.target.value
+                                    })}
+                                    className="note-input"
+                                    placeholder="Add notes..."
+                                    rows={2}
+                                  />
+                                  <div className="note-buttons">
+                                    <button
+                                      onClick={saveNote}
+                                      disabled={isUpdatingNote}
+                                      className="btn-save-note"
+                                      title="Save note"
+                                    >
+                                      {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
+                                    </button>
+                                    <button
+                                      onClick={cancelEditingNote}
+                                      className="btn-cancel-note"
+                                      title="Cancel"
+                                    >
+                                      <X />
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div 
+                                  className="note-display"
+                                  onClick={() => startEditingNote(player, week)}
+                                  title={data.notes ? `Notes: ${data.notes}` : "Click to add notes"}
+                                >
+                                  {data.notes ? (
+                                    <div className="note-text">📝 {data.notes}</div>
+                                  ) : (
+                                    <div className="note-placeholder">💭 Add note</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--secondary-text)' }}>-</span>
+                          <div className="missing-week-content">
+                            {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
+                              <div className="missing-note-editing">
+                                <textarea
+                                  value={editingMissingNote.notes}
+                                  onChange={(e) => setEditingMissingNote({
+                                    ...editingMissingNote,
+                                    notes: e.target.value
+                                  })}
+                                  className="note-input"
+                                  placeholder="Add notes for missing week..."
+                                  rows={2}
+                                />
+                                <div className="note-buttons">
+                                  <button
+                                    onClick={saveMissingNote}
+                                    disabled={isUpdatingMissingNote}
+                                    className="btn-save-note"
+                                    title="Save note"
+                                  >
+                                    {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
+                                  </button>
+                                  <button
+                                    onClick={cancelEditingMissingNote}
+                                    className="btn-cancel-note"
+                                    title="Cancel"
+                                  >
+                                    <X />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="missing-week-placeholder"
+                                onClick={() => startEditingMissingNote(player, week)}
+                                title="Click to add notes for this missing week"
+                              >
+                                <span className="missing-indicator">❌ Missing</span>
+                                <span className="add-note-hint">💭 Add note</span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
                     )
@@ -491,16 +769,6 @@ export default function WeeklyAnalysis() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="notes-section">
-        <h4>Legend:</h4>
-        <ul>
-          <li><strong>Targets Row:</strong> Click on target values to edit weekly targets for all players</li>
-          <li><strong>Performance Rows:</strong> Show actual distance and intensity scores achieved by each player</li>
-          <li><strong>Performance Colors:</strong> Green (≥100% of target), Red (20-99% of target), Yellow (&lt;20% of target)</li>
-          <li><strong>Target Format:</strong> Distance in kilometers, Intensity as percentage</li>
-        </ul>
       </div>
     </div>
   )
