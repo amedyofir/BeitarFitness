@@ -218,47 +218,55 @@ export default function AllDataView() {
 
   return (
     <div className="all-data-section">
-      <div className="condensed-grid">
-        <div className="grid-header">
-          <div className="player-header">Player</div>
-          {weeks.map((week, index) => (
-            <div key={week} className="week-header-condensed">
-              <div className="week-number">W{index + 1}</div>
-              <div className="week-dates">
-                {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
-              </div>
+      <div className="all-data-horizontal-container">
+        {/* Header Row */}
+        <div className="all-data-header-row">
+          <div className="player-column-header">Player</div>
+          <div className="weeks-scroll-container">
+            <div className="weeks-header">
+              {weeks.map((week, index) => (
+                <div key={week} className="week-header-all-data">
+                  <div className="week-number">W{index + 1}</div>
+                  <div className="week-dates">
+                    {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
 
-        <div className="grid-body">
+        {/* Player Rows */}
+        <div className="all-data-rows">
           {players.map(player => (
-            <div key={player} className="player-row">
-              <div className="player-name-condensed">{player}</div>
-              {weeks.map(week => {
-                const data = playerData[player]?.[week]
-                return (
-                  <div key={week} className="data-cell-condensed">
-                                         {data ? (
-                       <div className="cell-content-condensed">
-                         <div className={`distance-mini ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
-                           {formatDistance(data.total_distance)}
-                         </div>
-                         <div className={`intensity-mini ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity)}`}>
-                           {formatIntensity(data.vir_intensity)}
-                         </div>
-                         {data.notes && (
-                           <div className="notes-condensed" title={data.notes}>
-                             {data.notes.length > 20 ? `${data.notes.substring(0, 20)}...` : data.notes}
-                           </div>
-                         )}
-                       </div>
-                     ) : (
-                       <div className="missing-cell">-</div>
-                     )}
-                  </div>
-                )
-              })}
+            <div key={player} className="all-data-player-row">
+              <div className="player-name-sticky">{player}</div>
+              <div className="player-weeks-scroll">
+                {weeks.map(week => {
+                  const data = playerData[player]?.[week]
+                  return (
+                    <div key={week} className="all-data-week-cell">
+                      {data ? (
+                        <div className="all-data-cell-content">
+                          <div className={`distance-value ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
+                            {formatDistance(data.total_distance)}
+                          </div>
+                          <div className={`intensity-value ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity)}`}>
+                            {formatIntensity(data.vir_intensity)}
+                          </div>
+                          {data.notes && (
+                            <div className="notes-indicator" title={data.notes}>
+                              📝
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="missing-data">-</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>

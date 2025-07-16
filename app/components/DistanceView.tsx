@@ -369,103 +369,160 @@ export default function DistanceView() {
 
   return (
     <div className="distance-view-section">
-      <div className="distance-grid">
-        <div className="grid-header">
-          <div className="player-header">Player</div>
-          {weeks.map((week, index) => {
-            // Get target from first available player data for this week
-            const weekTarget = players.find(player => playerData[player]?.[week])
-              ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-              : 0
-            
-            return (
-              <div key={week} className="week-header-distance">
-                <div className="week-number">W{index + 1}</div>
-                <div className="week-dates">
-                  {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
-                </div>
-                <div className="week-target">
-                  Target: {weekTarget}km
-                </div>
-              </div>
-            )
-          })}
+      <div className="distance-horizontal-container">
+        {/* Header Row */}
+        <div className="distance-header-row">
+          <div className="player-column-header">Player</div>
+          <div className="weeks-scroll-container">
+            <div className="weeks-header">
+              {weeks.map((week, index) => {
+                // Get target from first available player data for this week
+                const weekTarget = players.find(player => playerData[player]?.[week])
+                  ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_km || 0
+                  : 0
+                
+                return (
+                  <div key={week} className="week-header-horizontal">
+                    <div className="week-number">W{index + 1}</div>
+                    <div className="week-dates">
+                      {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
+                    </div>
+                    <div className="week-target">
+                      Target: {weekTarget}km
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
-        <div className="grid-body">
-          {/* Average Row */}
-          <div className="player-row average-row">
-            <div className="player-name-distance average-label">AVERAGE</div>
-            {weeks.map(week => {
-              // Calculate average for players who have data in this week
-              const playersWithData = players.filter(player => playerData[player]?.[week])
-              
-              // Filter out zero values from distance calculation
-              const validDistances = playersWithData
-                .map(player => playerData[player][week]?.total_distance || 0)
-                .filter(distance => distance > 0)
-              
-              const avgDistance = validDistances.length > 0 ? 
-                validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
-              const weekTarget = playersWithData.find(player => playerData[player]?.[week])
-                ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-                : 0
-              
-              return (
-                <div key={week} className="data-cell-distance average-cell">
-                  {validDistances.length > 0 ? (
-                    <div className="cell-content-distance">
-                      <div className={`distance-large ${getPerformanceClass(avgDistance, weekTarget * 1000)}`}>
-                        {formatDistance(avgDistance)}
-                      </div>
-                      <div className="player-count">({validDistances.length} players)</div>
-                    </div>
-                  ) : (
-                    <div className="missing-cell">No data</div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Player Performance Rows */}
-          {players.map(player => (
-            <div key={player} className="player-row">
-              <div className="player-name-distance">{player}</div>
+        {/* Average Row */}
+        <div className="distance-player-row average-row">
+          <div className="player-column-name average-label">AVERAGE</div>
+          <div className="weeks-scroll-container">
+            <div className="weeks-data">
               {weeks.map(week => {
-                const data = playerData[player]?.[week]
+                // Calculate average for players who have data in this week
+                const playersWithData = players.filter(player => playerData[player]?.[week])
+                
+                // Filter out zero values from distance calculation
+                const validDistances = playersWithData
+                  .map(player => playerData[player][week]?.total_distance || 0)
+                  .filter(distance => distance > 0)
+                
+                const avgDistance = validDistances.length > 0 ? 
+                  validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
+                const weekTarget = playersWithData.find(player => playerData[player]?.[week])
+                  ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
+                  : 0
+                
                 return (
-                  <div key={week} className="data-cell-distance">
-                    {data ? (
-                      <div className="cell-content-distance">
-                        <div className={`distance-large ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
-                          {formatDistance(data.total_distance)}
+                  <div key={week} className="week-data-cell average-cell">
+                    {validDistances.length > 0 ? (
+                      <div className="cell-content-horizontal">
+                        <div className={`distance-large ${getPerformanceClass(avgDistance, weekTarget * 1000)}`}>
+                          {formatDistance(avgDistance)}
                         </div>
-                        
-                        <div className="notes-cell">
-                          {editingNote && editingNote.player === player && editingNote.week === week ? (
-                            <div className="note-editing">
+                        <div className="player-count">({validDistances.length} players)</div>
+                      </div>
+                    ) : (
+                      <div className="missing-cell">No data</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Player Rows */}
+        {players.map(player => (
+          <div key={player} className="distance-player-row">
+            <div className="player-column-name">{player}</div>
+            <div className="weeks-scroll-container">
+              <div className="weeks-data">
+                {weeks.map(week => {
+                  const data = playerData[player]?.[week]
+                  return (
+                    <div key={week} className="week-data-cell">
+                      {data ? (
+                        <div className="cell-content-horizontal">
+                          <div className={`distance-large ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
+                            {formatDistance(data.total_distance)}
+                          </div>
+                          
+                          <div className="notes-cell">
+                            {editingNote && editingNote.player === player && editingNote.week === week ? (
+                              <div className="note-editing">
+                                <textarea
+                                  value={editingNote.notes}
+                                  onChange={(e) => setEditingNote({
+                                    ...editingNote,
+                                    notes: e.target.value
+                                  })}
+                                  className="note-input"
+                                  placeholder="Add notes..."
+                                  rows={2}
+                                />
+                                <div className="note-buttons">
+                                  <button
+                                    onClick={saveNote}
+                                    disabled={isUpdatingNote}
+                                    className="btn-save-note"
+                                    title="Save note"
+                                  >
+                                    {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
+                                  </button>
+                                  <button
+                                    onClick={cancelEditingNote}
+                                    className="btn-cancel-note"
+                                    title="Cancel"
+                                  >
+                                    <X />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="note-display"
+                                onClick={() => startEditingNote(player, week)}
+                                title={data.notes ? `Notes: ${data.notes}` : "Click to add notes"}
+                              >
+                                {data.notes ? (
+                                  <div className="note-text">📝 {data.notes}</div>
+                                ) : (
+                                  <div className="note-placeholder">💭 Add note</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="missing-week-content">
+                          {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
+                            <div className="missing-note-editing">
                               <textarea
-                                value={editingNote.notes}
-                                onChange={(e) => setEditingNote({
-                                  ...editingNote,
+                                value={editingMissingNote.notes}
+                                onChange={(e) => setEditingMissingNote({
+                                  ...editingMissingNote,
                                   notes: e.target.value
                                 })}
                                 className="note-input"
-                                placeholder="Add notes..."
+                                placeholder="Add notes for missing week..."
                                 rows={2}
                               />
                               <div className="note-buttons">
                                 <button
-                                  onClick={saveNote}
-                                  disabled={isUpdatingNote}
+                                  onClick={saveMissingNote}
+                                  disabled={isUpdatingMissingNote}
                                   className="btn-save-note"
                                   title="Save note"
                                 >
-                                  {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
+                                  {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
                                 </button>
                                 <button
-                                  onClick={cancelEditingNote}
+                                  onClick={cancelEditingMissingNote}
                                   className="btn-cancel-note"
                                   title="Cancel"
                                 >
@@ -475,69 +532,23 @@ export default function DistanceView() {
                             </div>
                           ) : (
                             <div 
-                              className="note-display"
-                              onClick={() => startEditingNote(player, week)}
-                              title={data.notes ? `Notes: ${data.notes}` : "Click to add notes"}
+                              className="missing-week-placeholder"
+                              onClick={() => startEditingMissingNote(player, week)}
+                              title="Click to add notes for this missing week"
                             >
-                              {data.notes ? (
-                                <div className="note-text">📝 {data.notes}</div>
-                              ) : (
-                                <div className="note-placeholder">💭 Add note</div>
-                              )}
+                              <span className="missing-indicator">❌ Missing</span>
+                              <span className="add-note-hint">💭 Add note</span>
                             </div>
                           )}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="missing-week-content">
-                        {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
-                          <div className="missing-note-editing">
-                            <textarea
-                              value={editingMissingNote.notes}
-                              onChange={(e) => setEditingMissingNote({
-                                ...editingMissingNote,
-                                notes: e.target.value
-                              })}
-                              className="note-input"
-                              placeholder="Add notes for missing week..."
-                              rows={2}
-                            />
-                            <div className="note-buttons">
-                              <button
-                                onClick={saveMissingNote}
-                                disabled={isUpdatingMissingNote}
-                                className="btn-save-note"
-                                title="Save note"
-                              >
-                                {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
-                              </button>
-                              <button
-                                onClick={cancelEditingMissingNote}
-                                className="btn-cancel-note"
-                                title="Cancel"
-                              >
-                                <X />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div 
-                            className="missing-week-placeholder"
-                            onClick={() => startEditingMissingNote(player, week)}
-                            title="Click to add notes for this missing week"
-                          >
-                            <span className="missing-indicator">❌ Missing</span>
-                            <span className="add-note-hint">💭 Add note</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   )

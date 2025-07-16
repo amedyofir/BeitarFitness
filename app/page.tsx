@@ -7,6 +7,7 @@ import AllDataView from './components/AllDataView'
 import DistanceView from './components/DistanceView'
 import IntensityView from './components/IntensityView'
 import BarChartView from './components/BarChartView'
+import LatestDataBand from './components/LatestDataBand'
 import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart } from 'lucide-react'
 
 export default function Home() {
@@ -21,7 +22,7 @@ export default function Home() {
             alt="Beitar Jerusalem Logo" 
             className="navbar-logo"
           />
-          <h1 className="navbar-title">Beitar Jerusalem Scouting & Data</h1>
+                      <h1 className="navbar-title">FCBJ - Scouting & Data</h1>
         </div>
       </nav>
       
@@ -85,7 +86,12 @@ export default function Home() {
             {activeTab === 'alldata' && <AllDataView />}
             {activeTab === 'distance' && <DistanceView />}
             {activeTab === 'intensity' && <IntensityView />}
-            {activeTab === 'charts' && <BarChartView />}
+            {activeTab === 'charts' && (
+              <>
+                <LatestDataBand />
+                <BarChartView />
+              </>
+            )}
           </div>
         </div>
       </div>

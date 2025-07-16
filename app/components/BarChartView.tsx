@@ -457,18 +457,14 @@ export default function BarChartView() {
           label: 'Total Distance (m)',
           data: distances,
           backgroundColor: weekData.map(d => {
-            if (d.target === 0) return 'rgba(128, 128, 128, 0.8)' // Gray for no target
-            const percentage = (d.distance / d.target) * 100
-            if (percentage >= 100) return 'rgba(34, 197, 94, 0.8)' // Green for exceeding target
-            if (percentage >= 80) return 'rgba(255, 215, 0, 0.8)' // Gold for close to target
-            return 'rgba(239, 68, 68, 0.8)' // Red for below target
+            if (d.distance === 0) return 'rgba(128, 128, 128, 0.8)' // Gray for no data
+            if (d.distance >= averageDistance) return 'rgba(34, 197, 94, 0.8)' // Green for above average
+            return 'rgba(59, 130, 246, 0.8)' // Blue for below average
           }),
           borderColor: weekData.map(d => {
-            if (d.target === 0) return 'rgba(128, 128, 128, 1)'
-            const percentage = (d.distance / d.target) * 100
-            if (percentage >= 100) return 'rgba(34, 197, 94, 1)'
-            if (percentage >= 80) return 'rgba(255, 215, 0, 1)'
-            return 'rgba(239, 68, 68, 1)'
+            if (d.distance === 0) return 'rgba(128, 128, 128, 1)'
+            if (d.distance >= averageDistance) return 'rgba(34, 197, 94, 1)'
+            return 'rgba(59, 130, 246, 1)'
           }),
           borderWidth: 2,
           borderRadius: 4,

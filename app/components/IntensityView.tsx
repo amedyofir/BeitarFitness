@@ -390,105 +390,162 @@ export default function IntensityView() {
 
   return (
     <div className="intensity-view-section">
-      <div className="intensity-grid">
-        <div className="grid-header">
-          <div className="player-header">Player</div>
-          {weeks.map((week, index) => {
-            // Get target from first available player data for this week
-            const weekTarget = players.find(player => playerData[player]?.[week])
-              ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_intensity || 0
-              : 0
-            
-            return (
-              <div key={week} className="week-header-intensity">
-                <div className="week-number">W{index + 1}</div>
-                <div className="week-dates">
-                  {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
-                </div>
-                <div className="week-target">
-                  Target: {weekTarget}%
-                </div>
-              </div>
-            )
-          })}
+      <div className="intensity-horizontal-container">
+        {/* Header Row */}
+        <div className="intensity-header-row">
+          <div className="player-column-header">Player</div>
+          <div className="weeks-scroll-container">
+            <div className="weeks-header">
+              {weeks.map((week, index) => {
+                // Get target from first available player data for this week
+                const weekTarget = players.find(player => playerData[player]?.[week])
+                  ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_intensity || 0
+                  : 0
+                
+                return (
+                  <div key={week} className="week-header-intensity">
+                    <div className="week-number">W{index + 1}</div>
+                    <div className="week-dates">
+                      {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
+                    </div>
+                    <div className="week-target">
+                      Target: {weekTarget}%
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
-        <div className="grid-body">
+        {/* Player Rows */}
+        <div className="intensity-rows">
           {/* Average Row */}
-          <div className="player-row average-row">
-            <div className="player-name-intensity average-label">AVERAGE</div>
-            {weeks.map(week => {
-              // Calculate average for players who have data in this week
-              const playersWithData = players.filter(player => playerData[player]?.[week])
-              
-              // Filter out zero values from intensity calculation
-              const validIntensities = playersWithData
-                .map(player => playerData[player][week]?.vir_intensity || 0)
-                .filter(intensity => intensity > 0)
-              
-              const avgIntensity = validIntensities.length > 0 ? 
-                validIntensities.reduce((sum, intensity) => sum + intensity, 0) / validIntensities.length : 0
-              const weekTarget = playersWithData.find(player => playerData[player]?.[week])
-                ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_intensity || 0
-                : 0
-              
-              return (
-                <div key={week} className="data-cell-intensity average-cell">
-                  {validIntensities.length > 0 ? (
-                    <div className="cell-content-intensity">
-                      <div className={`intensity-large ${getPerformanceClass(avgIntensity * 100, weekTarget)}`}>
-                        {formatIntensity(avgIntensity)}
+          <div className="intensity-player-row average-row">
+            <div className="player-name-sticky average-label">AVERAGE</div>
+            <div className="player-weeks-scroll">
+              {weeks.map(week => {
+                // Calculate average for players who have data in this week
+                const playersWithData = players.filter(player => playerData[player]?.[week])
+                
+                // Filter out zero values from intensity calculation
+                const validIntensities = playersWithData
+                  .map(player => playerData[player][week]?.vir_intensity || 0)
+                  .filter(intensity => intensity > 0)
+                
+                const avgIntensity = validIntensities.length > 0 ? 
+                  validIntensities.reduce((sum, intensity) => sum + intensity, 0) / validIntensities.length : 0
+                const weekTarget = playersWithData.find(player => playerData[player]?.[week])
+                  ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_intensity || 0
+                  : 0
+                
+                return (
+                  <div key={week} className="intensity-week-cell average-cell">
+                    {validIntensities.length > 0 ? (
+                      <div className="intensity-cell-content">
+                        <div className={`intensity-large ${getPerformanceClass(avgIntensity * 100, weekTarget)}`}>
+                          {formatIntensity(avgIntensity)}
+                        </div>
+                        <div className="player-count">({validIntensities.length} players)</div>
                       </div>
-                      <div className="player-count">({validIntensities.length} players)</div>
-                    </div>
-                  ) : (
-                    <div className="missing-cell">No data</div>
-                  )}
-                </div>
-              )
-            })}
+                    ) : (
+                      <div className="missing-data">No data</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* Player Performance Rows */}
           {players.map(player => (
-            <div key={player} className="player-row">
-              <div className="player-name-intensity">{player}</div>
-              {weeks.map(week => {
-                const data = playerData[player]?.[week]
-                return (
-                  <div key={week} className="data-cell-intensity">
-                    {data ? (
-                      <div className="cell-content-intensity">
-                        <div className={`intensity-large ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity)}`}>
-                          {formatIntensity(data.vir_intensity)}
+            <div key={player} className="intensity-player-row">
+              <div className="player-name-sticky">{player}</div>
+              <div className="player-weeks-scroll">
+                {weeks.map(week => {
+                  const data = playerData[player]?.[week]
+                  return (
+                    <div key={week} className="intensity-week-cell">
+                      {data ? (
+                        <div className="intensity-cell-content">
+                          <div className={`intensity-large ${getPerformanceClass(data.vir_intensity * 100, data.target_intensity)}`}>
+                            {formatIntensity(data.vir_intensity)}
+                          </div>
+                          
+                          <div className="notes-cell">
+                            {editingNote && editingNote.player === player && editingNote.week === week ? (
+                              <div className="note-editing">
+                                <textarea
+                                  value={editingNote.notes}
+                                  onChange={(e) => setEditingNote({
+                                    ...editingNote,
+                                    notes: e.target.value
+                                  })}
+                                  className="note-input"
+                                  placeholder="Add notes..."
+                                  rows={2}
+                                />
+                                <div className="note-buttons">
+                                  <button
+                                    onClick={saveNote}
+                                    className="btn btn-primary btn-save"
+                                    disabled={isUpdatingNote}
+                                  >
+                                    {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
+                                  </button>
+                                  <button
+                                    onClick={cancelEditingNote}
+                                    className="btn btn-secondary btn-cancel"
+                                  >
+                                    <X />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="notes-display"
+                                onClick={() => startEditingNote(player, week)}
+                                title="Click to edit notes"
+                              >
+                                {data.notes ? (
+                                  <div className="note-content">
+                                    <span className="note-indicator">💬</span>
+                                    <span className="note-text">{data.notes}</span>
+                                  </div>
+                                ) : (
+                                  <div className="note-placeholder">
+                                    <span className="note-hint">💭 Add note</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        
-                        <div className="notes-cell">
-                          {editingNote && editingNote.player === player && editingNote.week === week ? (
+                      ) : (
+                        <div className="missing-week-content">
+                          {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
                             <div className="note-editing">
                               <textarea
-                                value={editingNote.notes}
-                                onChange={(e) => setEditingNote({
-                                  ...editingNote,
+                                value={editingMissingNote.notes}
+                                onChange={(e) => setEditingMissingNote({
+                                  ...editingMissingNote,
                                   notes: e.target.value
                                 })}
                                 className="note-input"
-                                placeholder="Add notes..."
+                                placeholder="Add notes for missing week..."
                                 rows={2}
                               />
                               <div className="note-buttons">
                                 <button
-                                  onClick={saveNote}
-                                  disabled={isUpdatingNote}
-                                  className="btn-save-note"
-                                  title="Save note"
+                                  onClick={saveMissingNote}
+                                  className="btn btn-primary btn-save"
+                                  disabled={isUpdatingMissingNote}
                                 >
-                                  {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
+                                  {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
                                 </button>
                                 <button
-                                  onClick={cancelEditingNote}
-                                  className="btn-cancel-note"
-                                  title="Cancel"
+                                  onClick={cancelEditingMissingNote}
+                                  className="btn btn-secondary btn-cancel"
                                 >
                                   <X />
                                 </button>
@@ -496,66 +553,20 @@ export default function IntensityView() {
                             </div>
                           ) : (
                             <div 
-                              className="note-display"
-                              onClick={() => startEditingNote(player, week)}
-                              title={data.notes ? `Notes: ${data.notes}` : "Click to add notes"}
+                              className="missing-week-placeholder"
+                              onClick={() => startEditingMissingNote(player, week)}
+                              title="Click to add notes for this missing week"
                             >
-                              {data.notes ? (
-                                <div className="note-text">📝 {data.notes}</div>
-                              ) : (
-                                <div className="note-placeholder">💭 Add note</div>
-                              )}
+                              <span className="missing-indicator">❌ Missing</span>
+                              <span className="add-note-hint">💭 Add note</span>
                             </div>
                           )}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="missing-week-content">
-                        {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
-                          <div className="missing-note-editing">
-                            <textarea
-                              value={editingMissingNote.notes}
-                              onChange={(e) => setEditingMissingNote({
-                                ...editingMissingNote,
-                                notes: e.target.value
-                              })}
-                              className="note-input"
-                              placeholder="Add notes for missing week..."
-                              rows={2}
-                            />
-                            <div className="note-buttons">
-                              <button
-                                onClick={saveMissingNote}
-                                disabled={isUpdatingMissingNote}
-                                className="btn-save-note"
-                                title="Save note"
-                              >
-                                {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
-                              </button>
-                              <button
-                                onClick={cancelEditingMissingNote}
-                                className="btn-cancel-note"
-                                title="Cancel"
-                              >
-                                <X />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div 
-                            className="missing-week-placeholder"
-                            onClick={() => startEditingMissingNote(player, week)}
-                            title="Click to add notes for this missing week"
-                          >
-                            <span className="missing-indicator">❌ Missing</span>
-                            <span className="add-note-hint">💭 Add note</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>

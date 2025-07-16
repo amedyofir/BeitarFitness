@@ -2,7 +2,7 @@ import './globals.css'
 import React from 'react'
 
 export const metadata = {
-  title: 'Fitness Tracker',
+  title: 'FCBJ - Scouting & Data',
   description: 'Track and analyze fitness data with innovative design',
 }
 
