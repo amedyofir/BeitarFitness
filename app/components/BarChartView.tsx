@@ -526,8 +526,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -621,8 +621,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -711,8 +711,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -801,8 +801,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -891,8 +891,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -981,8 +981,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
@@ -1071,8 +1071,8 @@ export default function BarChartView() {
           type: 'scatter' as const,
           pointBackgroundColor: 'rgba(0, 0, 0, 1)',
           pointBorderColor: 'rgba(255, 255, 255, 1)',
-          pointRadius: 8,
-          pointHoverRadius: 10,
+          pointRadius: isMobile ? 5 : 8,
+          pointHoverRadius: isMobile ? 7 : 10,
           pointStyle: 'circle',
           showLine: false
         }
