@@ -869,9 +869,23 @@ export default function MatchReports() {
                           <tr key={player.id}>
                             <td className="rank">{index + 1}</td>
                             <td className={`player-name player-name-${player.status || 'starter'}`}>
-                              {player.squad_players ? 
-                               (player.squad_players.full_name || `${player.squad_players.first_name} ${player.squad_players.last_name}`) : 
-                               (player.player_name || 'Unknown Player')}
+                              {(() => {
+                                // Special cases for specific players
+                                if (player.squad_players?.full_name === 'Yarden Cohen') {
+                                  return 'Y. Cohen';
+                                }
+                                if (player.squad_players?.full_name === 'Gil Cohen') {
+                                  return 'G. Cohen';
+                                }
+                                if (player.squad_players?.full_name === 'Yarin Levi') {
+                                  return 'Yarin';
+                                }
+                                
+                                // Default case: show last name only
+                                return player.squad_players ? 
+                                  (player.squad_players.last_name || player.squad_players.full_name?.split(' ').pop() || 'Unknown') : 
+                                  (player.player_name?.split(' ').pop() || 'Unknown');
+                              })()}
                             </td>
                             <td 
                               style={getCellStyle(player.id, 'time', selectedMatchData.match_id)}
@@ -963,9 +977,23 @@ export default function MatchReports() {
                           <tr key={player.id}>
                             <td className="rank">{index + 1}</td>
                             <td className={`player-name player-name-${player.status || 'starter'}`}>
-                              {player.squad_players ? 
-                               (player.squad_players.full_name || `${player.squad_players.first_name} ${player.squad_players.last_name}`) : 
-                               (player.player_name || 'Unknown Player')}
+                              {(() => {
+                                // Special cases for specific players
+                                if (player.squad_players?.full_name === 'Yarden Cohen') {
+                                  return 'Y. Cohen';
+                                }
+                                if (player.squad_players?.full_name === 'Gil Cohen') {
+                                  return 'G. Cohen';
+                                }
+                                if (player.squad_players?.full_name === 'Yarin Levi') {
+                                  return 'Yarin';
+                                }
+                                
+                                // Default case: show last name only
+                                return player.squad_players ? 
+                                  (player.squad_players.last_name || player.squad_players.full_name?.split(' ').pop() || 'Unknown') : 
+                                  (player.player_name?.split(' ').pop() || 'Unknown');
+                              })()}
                             </td>
                             <td 
                               style={getCellStyle(player.id, 'time', selectedMatchData.match_id)}
