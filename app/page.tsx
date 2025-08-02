@@ -8,10 +8,13 @@ import DistanceView from './components/DistanceView'
 import IntensityView from './components/IntensityView'
 import BarChartView from './components/BarChartView'
 import LatestDataBand from './components/LatestDataBand'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart } from 'lucide-react'
+import PlayersView from './components/PlayersView'
+import CoachDashboard from './components/CoachDashboard'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp } from 'lucide-react'
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts'>('charts')
+  const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'coaches' | 'players'>('coach-dashboard')
+  const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
 
   return (
     <div className="main-container">
@@ -35,64 +38,116 @@ export default function Home() {
 
       <div className="content-container">
         <div className="glass-card">
-          <nav className="tab-nav">
+          {/* Main Section Navigation */}
+          <nav className="section-nav">
             <button
-              onClick={() => setActiveTab('upload')}
-              className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveSection('coach-dashboard')
+              }}
+              className={`section-button ${activeSection === 'coach-dashboard' ? 'active' : ''}`}
             >
-              <Upload />
-              Upload Data
+              <TrendingUp />
+              Coach Dashboard
             </button>
             <button
-              onClick={() => setActiveTab('analysis')}
-              className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveSection('coaches')
+                setActiveTab('charts')
+              }}
+              className={`section-button ${activeSection === 'coaches' ? 'active' : ''}`}
             >
-              <BarChart3 />
-              Weekly Analysis
+              <ClipboardList />
+              Coaches
             </button>
             <button
-              onClick={() => setActiveTab('alldata')}
-              className={`tab-button ${activeTab === 'alldata' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveSection('players')
+                setActiveTab('match-reports')
+              }}
+              className={`section-button ${activeSection === 'players' ? 'active' : ''}`}
             >
-              <Grid3X3 />
-              All Data
-            </button>
-            <button
-              onClick={() => setActiveTab('distance')}
-              className={`tab-button ${activeTab === 'distance' ? 'active' : ''}`}
-            >
-              <MapPin />
-              Distance Only
-            </button>
-            <button
-              onClick={() => setActiveTab('intensity')}
-              className={`tab-button ${activeTab === 'intensity' ? 'active' : ''}`}
-            >
-              <Zap />
-              Intensity Only
-            </button>
-            <button
-              onClick={() => setActiveTab('charts')}
-              className={`tab-button ${activeTab === 'charts' ? 'active' : ''}`}
-            >
-              <BarChart />
-              Dashboard
+              <Users />
+              Players
             </button>
           </nav>
 
-          <div className="tab-content">
-            {activeTab === 'upload' && <FileUpload />}
-            {activeTab === 'analysis' && <WeeklyAnalysis />}
-            {activeTab === 'alldata' && <AllDataView />}
-            {activeTab === 'distance' && <DistanceView />}
-            {activeTab === 'intensity' && <IntensityView />}
-            {activeTab === 'charts' && (
-              <>
-                <LatestDataBand />
-                <BarChartView />
-              </>
-            )}
-          </div>
+          {/* Coach Dashboard Section */}
+          {activeSection === 'coach-dashboard' && (
+            <div className="tab-content">
+              <CoachDashboard />
+            </div>
+          )}
+
+          {/* Coaches Section */}
+          {activeSection === 'coaches' && (
+            <>
+              <nav className="tab-nav">
+                <button
+                  onClick={() => setActiveTab('upload')}
+                  className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
+                >
+                  <Upload />
+                  Upload Data
+                </button>
+                <button
+                  onClick={() => setActiveTab('analysis')}
+                  className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
+                >
+                  <BarChart3 />
+                  Weekly Analysis
+                </button>
+                <button
+                  onClick={() => setActiveTab('alldata')}
+                  className={`tab-button ${activeTab === 'alldata' ? 'active' : ''}`}
+                >
+                  <Grid3X3 />
+                  All Data
+                </button>
+                <button
+                  onClick={() => setActiveTab('distance')}
+                  className={`tab-button ${activeTab === 'distance' ? 'active' : ''}`}
+                >
+                  <MapPin />
+                  Distance Only
+                </button>
+                <button
+                  onClick={() => setActiveTab('intensity')}
+                  className={`tab-button ${activeTab === 'intensity' ? 'active' : ''}`}
+                >
+                  <Zap />
+                  Intensity Only
+                </button>
+                <button
+                  onClick={() => setActiveTab('charts')}
+                  className={`tab-button ${activeTab === 'charts' ? 'active' : ''}`}
+                >
+                  <BarChart />
+                  Dashboard
+                </button>
+              </nav>
+
+              <div className="tab-content">
+                {activeTab === 'upload' && <FileUpload />}
+                {activeTab === 'analysis' && <WeeklyAnalysis />}
+                {activeTab === 'alldata' && <AllDataView />}
+                {activeTab === 'distance' && <DistanceView />}
+                {activeTab === 'intensity' && <IntensityView />}
+                {activeTab === 'charts' && (
+                  <>
+                    <LatestDataBand />
+                    <BarChartView />
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Players Section */}
+          {activeSection === 'players' && (
+            <div className="tab-content">
+              <PlayersView />
+            </div>
+          )}
         </div>
       </div>
     </div>
