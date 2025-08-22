@@ -1160,6 +1160,128 @@ input[type="file"] {
   padding: 20px;
 }
 
+.pdf-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 20px 10px;
+  background: var(--primary-bg);
+  border-bottom: 2px solid var(--primary-accent);
+  margin-bottom: 0;
+}
+
+.pdf-header-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.pdf-header-logo {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+}
+
+.pdf-header-title {
+  color: var(--primary-accent);
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  @page {
+    margin: 20px;
+  }
+
+  body, html {
+    background-color: black !important;
+  }
+
+  .pdf-header, 
+  .distance-horizontal-container,
+  .intensity-horizontal-container {
+    background-color: black !important;
+    color: #FFD700 !important;
+    position: relative;
+    z-index: 2;
+  }
+
+  .pdf-header {
+    border-bottom: 2px solid #333 !important;
+  }
+
+  .distance-horizontal-container,
+  .intensity-horizontal-container {
+    border: 1px solid #333 !important;
+    border-top: none !important;
+  }
+
+  .distance-header-row,
+  .intensity-header-row,
+  .week-data-cell,
+  .player-column-header,
+  .player-column-name,
+  .player-name-sticky,
+  .weeks-scroll-container,
+  .player-weeks-scroll,
+  .week-header-horizontal {
+    background-color: black !important;
+    color: #FFD700 !important;
+  }
+
+  .week-data-cell,
+  table, th, td {
+    border-color: #333 !important;
+  }
+
+  /* Hide all other content */
+  .navbar,
+  .tab-nav,
+  .tab-content > *:not(.distance-view-section) {
+    display: none !important;
+  }
+}
+
+.distance-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
+  border: none;
+  border-radius: 8px;
+  color: var(--primary-bg);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.download-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .distance-grid {
   display: flex;
   flex-direction: column;
@@ -1174,8 +1296,9 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   background: var(--glass-bg);
-  border-radius: var(--border-radius);
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
   border: 1px solid var(--glass-border);
+  border-top: none;
   overflow: hidden;
 }
 
@@ -1205,14 +1328,14 @@ input[type="file"] {
 
 .player-column-header {
   background: var(--accent-bg);
-  padding: 12px 16px;
+  padding: 8px 12px;
   font-weight: 600;
   color: var(--primary-accent);
   display: flex;
   align-items: center;
-  font-size: 0.9rem;
-  min-width: 150px;
-  max-width: 150px;
+  font-size: 0.85rem;
+  min-width: 120px;
+  max-width: 120px;
   position: sticky;
   left: 0;
   z-index: 15;
@@ -1221,14 +1344,14 @@ input[type="file"] {
 
 .player-column-name {
   background: var(--secondary-bg);
-  padding: 12px 16px;
+  padding: 8px 12px;
   font-weight: 500;
   color: var(--primary-accent);
   display: flex;
   align-items: center;
-  font-size: 0.85rem;
-  min-width: 150px;
-  max-width: 150px;
+  font-size: 0.8rem;
+  min-width: 120px;
+  max-width: 120px;
   position: sticky;
   left: 0;
   z-index: 5;
@@ -1259,25 +1382,25 @@ input[type="file"] {
 
 .week-header-horizontal {
   background: var(--accent-bg);
-  padding: 8px 4px;
+  padding: 4px 2px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 120px;
-  max-width: 120px;
+  gap: 1px;
+  min-width: 80px;
+  max-width: 80px;
   border-right: 1px solid var(--glass-border);
 }
 
 .week-data-cell {
   background: var(--primary-bg);
-  padding: 12px 8px;
+  padding: 6px 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 75px;
-  min-width: 120px;
-  max-width: 120px;
+  min-height: 40px;
+  min-width: 80px;
+  max-width: 80px;
   transition: var(--transition-smooth);
   border-right: 1px solid var(--glass-border);
 }
@@ -1334,29 +1457,29 @@ input[type="file"] {
   .player-column-name {
     min-width: 100px;
     max-width: 100px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     font-size: 0.75rem;
   }
   
   .week-header-horizontal,
   .week-data-cell {
-    min-width: 90px;
-    max-width: 90px;
+    min-width: 70px;
+    max-width: 70px;
   }
   
   .week-header-horizontal {
-    padding: 4px 2px;
+    padding: 3px 2px;
   }
   
   .week-data-cell {
-    padding: 8px 4px;
-    min-height: 65px;
+    padding: 4px 2px;
+    min-height: 35px;
   }
   
-  .distance-large {
-    font-size: 0.8rem;
-    min-width: 50px;
-    padding: 2px 4px;
+  .distance-compact {
+    font-size: 0.75rem;
+    min-width: 40px;
+    padding: 1px 3px;
   }
   
   .week-dates {
@@ -1410,14 +1533,26 @@ input[type="file"] {
   width: 100%;
 }
 
-.distance-large {
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.9rem;
+.distance-compact {
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
   font-weight: 700;
-  min-width: 60px;
+  min-width: 45px;
   text-align: center;
   border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.intensity-compact {
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-width: 45px;
+  text-align: center;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .target-distance-small {
@@ -2788,8 +2923,12 @@ input[type="file"] {
 
 .intensity-player-row {
   display: flex;
-  background: var(--glass-border);
-  min-height: 85px;
+  border-bottom: 1px solid var(--glass-border);
+  transition: var(--transition-smooth);
+}
+
+.intensity-player-row:hover {
+  background: var(--glass-bg);
 }
 
 .intensity-player-row .player-name-sticky {
@@ -2978,20 +3117,22 @@ input[type="file"] {
 
 .missing-week-content {
   width: 100%;
-  padding: 4px;
+  padding: 2px;
   text-align: center;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .missing-week-placeholder {
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px dashed var(--secondary-text);
-  transition: all 0.2s;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.8rem;
+  color: var(--secondary-text);
 }
 
 .missing-week-placeholder:hover {
@@ -3000,8 +3141,9 @@ input[type="file"] {
 }
 
 .missing-indicator {
-  font-size: 0.7rem;
-  color: var(--secondary-accent);
+  font-size: 0.8rem;
+  color: var(--secondary-text);
+  opacity: 0.7;
 }
 
 .add-note-hint {
@@ -3012,11 +3154,8 @@ input[type="file"] {
 
 /* Horizontal scrolling average row styles */
 .intensity-player-row.average-row {
-  background: linear-gradient(90deg, var(--accent-bg), transparent);
-  border-bottom: 2px solid var(--primary-accent);
-  border-top: 2px solid var(--primary-accent);
-  font-weight: 600;
-  font-size: 0.9em;
+  background: var(--secondary-bg);
+  border-bottom: 2px solid var(--glass-border);
 }
 
 .intensity-player-row.average-row:hover {
@@ -5834,4 +5973,49 @@ input[type="file"] {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+/* CSV Upload Overwrite Styles */
+.upload-area.processed {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.upload-area.processed .file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-color);
+}
+
+.upload-area.processed .file-info svg {
+  color: #4CAF50;
+}
+
+.reset-button {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #F57C00, #E65100);
+  transform: translateY(-1px);
+}
+
+.reset-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }

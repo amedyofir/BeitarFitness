@@ -49,9 +49,9 @@ interface SquadPlayer {
 // Position benchmarks for 100 minutes of play
 const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
   // Central Backs
-  'RCB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
-  'LCB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
-  'CB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
+  'RCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'LCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'CB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
   
   // Full Backs
   'RB': { distance: 11000, highSpeed: 900, sprint: 150, intensity: 9.55 },
@@ -65,24 +65,24 @@ const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
   'LCDM': { distance: 10500, highSpeed: 500, sprint: 100, intensity: 5.71 },
   
   // Central Midfielders
-  'RCM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'LCM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'CM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'CAM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
+  'RCM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'LCM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'CM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'CAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
   
   // Wingers
   'RW': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'LW': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'RM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'LM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
-  'RAM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
-  'LAM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
+  'RAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'LAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
   
   // Strikers
-  'ST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'RST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'LST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'CF': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 }
+  'ST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'RST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'LST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'CF': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 }
 }
 
 export default function PlayerAnalysis() {

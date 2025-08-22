@@ -1,8 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Loader2, Save, X } from 'lucide-react'
+import { Loader2, Save, X, Download } from 'lucide-react'
+import generatePDF from 'react-to-pdf'
+import html2canvas from 'html2canvas'
 
 interface WeeklyData {
   player_name: string
@@ -36,6 +38,32 @@ interface EditingMissingNote {
 }
 
 export default function DistanceView() {
+  const targetRef = useRef<HTMLDivElement>(null)
+
+  const handleDownloadPDF = () => {
+    if (targetRef.current) {
+      generatePDF(() => targetRef.current, {
+        filename: 'distance-report.pdf',
+        page: { margin: 20 }
+      })
+    }
+  }
+
+  const handleDownloadImage = () => {
+    if (targetRef.current) {
+      html2canvas(targetRef.current, {
+        backgroundColor: '#000000',
+        useCORS: true,
+        allowTaint: true,
+        scale: 2
+      }).then(canvas => {
+        const link = document.createElement('a')
+        link.download = 'distance-report.png'
+        link.href = canvas.toDataURL('image/png')
+        link.click()
+      })
+    }
+  }
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [playerData, setPlayerData] = useState<PlayerWeeklyData>({})
   const [loading, setLoading] = useState(true)
@@ -57,43 +85,33 @@ export default function DistanceView() {
   }
 
   // Helper function to generate consistent week string
+  const formatDateToDDMMYY = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear().toString().slice(-2)
+    return `${day}-${month}-${year}`
+  }
+
   const generateWeekString = (date: Date): string => {
     const weekStart = getWeekStartDate(date)
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
     
-    return `${weekStart.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
+    return `${formatDateToDDMMYY(weekStart)} - ${formatDateToDDMMYY(weekEnd)}`
   }
 
   // Helper function to extract start date from week string
   const getStartDateFromWeekString = (weekString: string): Date => {
-    const startDateStr = weekString.split(' - ')[0]
-    console.log('Original week string:', weekString)
-    console.log('Start date string:', startDateStr)
+    const startDateStr = weekString.split(' - ')[0] // Gets "DD-MM-YY"
     
-    // Parse the date string more carefully to avoid timezone issues
-    const dateParts = startDateStr.split(' ')
-    const month = dateParts[0]
-    const day = parseInt(dateParts[1].replace(',', ''))
-    const year = parseInt(dateParts[2])
-    
-    console.log('Parsed components:', { month, day, year })
+    // Parse the DD-MM-YY format
+    const [day, month, yearShort] = startDateStr.split('-')
+    const year = 2000 + parseInt(yearShort) // Convert YY to full year
     
     // Create date in local timezone at noon to avoid timezone edge cases
-    const date = new Date(year, getMonthIndex(month), day, 12, 0, 0, 0)
-    
-    console.log('Final date:', date)
-    console.log('Day of week:', date.getDay(), '(0=Sunday)')
-    console.log('Date for database:', date.toISOString().split('T')[0])
-    
+    // Note: month is 0-based in JavaScript Date
+    const date = new Date(year, parseInt(month) - 1, parseInt(day), 12, 0, 0, 0)
     return date
-  }
-
-  // Helper function to get month index from month name
-  const getMonthIndex = (monthName: string): number => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December']
-    return months.indexOf(monthName)
   }
 
   useEffect(() => {
@@ -199,7 +217,8 @@ export default function DistanceView() {
   }
 
   const formatDistance = (distance: number): string => {
-    return (distance / 1000).toFixed(1) + 'km'
+    // Format the distance as an integer with thousands separator
+    return Math.round(distance).toLocaleString('en-US')
   }
 
   const getPerformanceClass = (actualValue: number, targetValue: number): string => {
@@ -208,6 +227,21 @@ export default function DistanceView() {
     if (percentage < 20) return 'performance-critical'
     if (percentage >= 100) return 'performance-excellent'
     return 'performance-below'
+  }
+
+  const formatPlayerName = (fullName: string): string => {
+    // Special cases for Cohen family
+    if (fullName === 'Yarden Cohen') return 'Y. COHEN'
+    if (fullName === 'Gil Cohen') return 'G. COHEN'
+          // Special case for Ben Shimol
+      if (fullName === 'Ziv Ben shimol') return 'BEN SHIMOL'
+
+    // For all other players, show only last name in uppercase
+    const nameParts = fullName.split(' ')
+    if (nameParts.length > 1) {
+      return nameParts[nameParts.length - 1].toUpperCase()
+    }
+    return fullName.toUpperCase()
   }
 
   // Note editing functions
@@ -369,178 +403,78 @@ export default function DistanceView() {
 
   return (
     <div className="distance-view-section">
-      <div className="distance-horizontal-container">
-        {/* Header Row */}
-        <div className="distance-header-row">
-          <div className="player-column-header">Player</div>
-          <div className="weeks-scroll-container">
-            <div className="weeks-header">
-              {weeks.map((week, index) => {
-                // Get target from first available player data for this week
-                const weekTarget = players.find(player => playerData[player]?.[week])
-                  ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-                  : 0
-                
-                return (
-                  <div key={week} className="week-header-horizontal">
-                    <div className="week-number">W{index + 1}</div>
-                    <div className="week-dates">
-                      {week.split(' - ')[0].split(' ').slice(0, 2).join(' ')}
-                    </div>
-                    <div className="week-target">
-                      Target: {weekTarget}km
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+      <div className="distance-header-actions">
+        <button onClick={handleDownloadPDF} className="download-btn">
+          <Download size={16} />
+          PDF
+        </button>
+        <button onClick={handleDownloadImage} className="download-btn">
+          <Download size={16} />
+          PNG
+        </button>
+      </div>
+      <div ref={targetRef}>
+        <div className="pdf-header">
+          <div className="pdf-header-content">
+            <img src="/beitar-logo.png" alt="FCBJ Logo" className="pdf-header-logo" />
+            <h1 className="pdf-header-title">FCBJ - Scouting & Data</h1>
           </div>
         </div>
-
-        {/* Average Row */}
-        <div className="distance-player-row average-row">
-          <div className="player-column-name average-label">AVERAGE</div>
-          <div className="weeks-scroll-container">
-            <div className="weeks-data">
-              {weeks.map(week => {
-                // Calculate average for players who have data in this week
-                const playersWithData = players.filter(player => playerData[player]?.[week])
-                
-                // Filter out zero values from distance calculation
-                const validDistances = playersWithData
-                  .map(player => playerData[player][week]?.total_distance || 0)
-                  .filter(distance => distance > 0)
-                
-                const avgDistance = validDistances.length > 0 ? 
-                  validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
-                const weekTarget = playersWithData.find(player => playerData[player]?.[week])
-                  ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-                  : 0
-                
-                return (
-                  <div key={week} className="week-data-cell average-cell">
-                    {validDistances.length > 0 ? (
-                      <div className="cell-content-horizontal">
-                        <div className={`distance-large ${getPerformanceClass(avgDistance, weekTarget * 1000)}`}>
-                          {formatDistance(avgDistance)}
-                        </div>
-                        <div className="player-count">({validDistances.length} players)</div>
+        <div className="distance-horizontal-container">
+          {/* Header Row */}
+          <div className="distance-header-row">
+            <div className="player-column-header">Player</div>
+            <div className="weeks-scroll-container">
+              <div className="weeks-header">
+                {weeks.map((week, index) => {
+                  // Get target from first available player data for this week
+                  const weekTarget = players.find(player => playerData[player]?.[week])
+                    ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_km || 0
+                    : 0
+                  
+                  return (
+                    <div key={week} className="week-header-horizontal">
+                      <div className="week-number">W{index + 1}</div>
+                      <div className="week-dates">
+                        {week}
                       </div>
-                    ) : (
-                      <div className="missing-cell">No data</div>
-                    )}
-                  </div>
-                )
-              })}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Player Rows */}
-        {players.map(player => (
-          <div key={player} className="distance-player-row">
-            <div className="player-column-name">{player}</div>
+          {/* Average Row */}
+          <div className="distance-player-row average-row">
+            <div className="player-column-name average-label">AVERAGE</div>
             <div className="weeks-scroll-container">
               <div className="weeks-data">
                 {weeks.map(week => {
-                  const data = playerData[player]?.[week]
+                  // Calculate average for players who have data in this week
+                  const playersWithData = players.filter(player => playerData[player]?.[week])
+                  
+                  // Filter out zero values from distance calculation
+                  const validDistances = playersWithData
+                    .map(player => playerData[player][week]?.total_distance || 0)
+                    .filter(distance => distance > 0)
+                  
+                  const avgDistance = validDistances.length > 0 ? 
+                    validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
+                  const weekTarget = playersWithData.find(player => playerData[player]?.[week])
+                    ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
+                    : 0
+                  
                   return (
-                    <div key={week} className="week-data-cell">
-                      {data ? (
+                    <div key={week} className="week-data-cell average-cell">
+                      {validDistances.length > 0 ? (
                         <div className="cell-content-horizontal">
-                          <div className={`distance-large ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
-                            {formatDistance(data.total_distance)}
-                          </div>
-                          
-                          <div className="notes-cell">
-                            {editingNote && editingNote.player === player && editingNote.week === week ? (
-                              <div className="note-editing">
-                                <textarea
-                                  value={editingNote.notes}
-                                  onChange={(e) => setEditingNote({
-                                    ...editingNote,
-                                    notes: e.target.value
-                                  })}
-                                  className="note-input"
-                                  placeholder="Add notes..."
-                                  rows={2}
-                                />
-                                <div className="note-buttons">
-                                  <button
-                                    onClick={saveNote}
-                                    disabled={isUpdatingNote}
-                                    className="btn-save-note"
-                                    title="Save note"
-                                  >
-                                    {isUpdatingNote ? <Loader2 className="spin" /> : <Save />}
-                                  </button>
-                                  <button
-                                    onClick={cancelEditingNote}
-                                    className="btn-cancel-note"
-                                    title="Cancel"
-                                  >
-                                    <X />
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div 
-                                className="note-display"
-                                onClick={() => startEditingNote(player, week)}
-                                title={data.notes ? `Notes: ${data.notes}` : "Click to add notes"}
-                              >
-                                {data.notes ? (
-                                  <div className="note-text">📝 {data.notes}</div>
-                                ) : (
-                                  <div className="note-placeholder">💭 Add note</div>
-                                )}
-                              </div>
-                            )}
+                          <div className={`distance-compact ${getPerformanceClass(avgDistance, weekTarget * 1000)}`}>
+                            {formatDistance(avgDistance)}
                           </div>
                         </div>
                       ) : (
-                        <div className="missing-week-content">
-                          {editingMissingNote && editingMissingNote.player === player && editingMissingNote.week === week ? (
-                            <div className="missing-note-editing">
-                              <textarea
-                                value={editingMissingNote.notes}
-                                onChange={(e) => setEditingMissingNote({
-                                  ...editingMissingNote,
-                                  notes: e.target.value
-                                })}
-                                className="note-input"
-                                placeholder="Add notes for missing week..."
-                                rows={2}
-                              />
-                              <div className="note-buttons">
-                                <button
-                                  onClick={saveMissingNote}
-                                  disabled={isUpdatingMissingNote}
-                                  className="btn-save-note"
-                                  title="Save note"
-                                >
-                                  {isUpdatingMissingNote ? <Loader2 className="spin" /> : <Save />}
-                                </button>
-                                <button
-                                  onClick={cancelEditingMissingNote}
-                                  className="btn-cancel-note"
-                                  title="Cancel"
-                                >
-                                  <X />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div 
-                              className="missing-week-placeholder"
-                              onClick={() => startEditingMissingNote(player, week)}
-                              title="Click to add notes for this missing week"
-                            >
-                              <span className="missing-indicator">❌ Missing</span>
-                              <span className="add-note-hint">💭 Add note</span>
-                            </div>
-                          )}
-                        </div>
+                        <div className="missing-cell">No data</div>
                       )}
                     </div>
                   )
@@ -548,8 +482,39 @@ export default function DistanceView() {
               </div>
             </div>
           </div>
-        ))}
+
+          {/* Player Rows */}
+          {players.map(player => (
+            <div key={player} className="distance-player-row">
+              <div className="player-column-name">{formatPlayerName(player)}</div>
+              <div className="weeks-scroll-container">
+                <div className="weeks-data">
+                  {weeks.map(week => {
+                    const data = playerData[player]?.[week]
+                    return (
+                      <div key={week} className="week-data-cell">
+                        {data ? (
+                          <div className="cell-content-horizontal">
+                            <div className={`distance-compact ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
+                              {formatDistance(data.total_distance)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="missing-week-content">
+                            <div className="missing-week-placeholder">
+                              <span className="missing-indicator">-</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
-} 
+}

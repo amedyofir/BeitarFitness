@@ -129,6 +129,7 @@ export default function MatchUpload() {
   const [showPositionAssignment, setShowPositionAssignment] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null)
   const [showPlayerModal, setShowPlayerModal] = useState(false)
+  const [dataProcessed, setDataProcessed] = useState(false)
 
   // Fetch squad players and opponents on component mount
   useEffect(() => {
@@ -173,7 +174,14 @@ export default function MatchUpload() {
         'Timothy Mozi': 'Timothy Muzie',
         'Levi Yarin': 'Yarin Levi',
         'Nehorai Dabush': 'Nehoray Dabush',
-        'Zohar Zesano': 'Zohar Zasno'
+        'Zohar Zesano': 'Zohar Zasno',
+        'Ziv Ben Shimol': '87790a25-02d2-4d12-86b9-350769afa11d',
+        'Ziv Ben shimol': '87790a25-02d2-4d12-86b9-350769afa11d',
+        'ziv ben shimol': '87790a25-02d2-4d12-86b9-350769afa11d',
+        'Yan Yusupuv': 'Yan Yusupuv',
+        'yan yusupuv': 'Yan Yusupuv',
+        'Yan Yusopov': 'Yan Yusopov',
+        'yan yusopov': 'Yan Yusopov'
       }
       
       // Create lookup by database names
@@ -218,6 +226,29 @@ export default function MatchUpload() {
             fullName: player.full_name || fullName
           }
           console.log(`Direct mapped: "${fullName}" -> ${player.player_id}`)
+        }
+      })
+      
+      // Add fallback entries for players not found in database (new players)
+      const fallbackPlayers = ['Yan Yusupuv', 'Yan Yusopov']
+      fallbackPlayers.forEach(playerName => {
+        if (!playerMap[playerName]) {
+          // Generate a proper UUID for players not in database
+          const generateUUID = (): string => {
+            // Generate a proper UUID v4
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0;
+              const v = c == 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            });
+          }
+          
+          const tempId = generateUUID()
+          playerMap[playerName] = {
+            id: tempId,
+            fullName: playerName
+          }
+          console.log(`Added fallback player: "${playerName}" -> ${tempId}`)
         }
       })
       
@@ -287,6 +318,26 @@ export default function MatchUpload() {
     }
   }
 
+  const resetUpload = () => {
+    setCsvFile(null)
+    setProcessedData([])
+    setPlayerStatuses({})
+    setPlayerPositions({})
+    setShowStatusAssignment(false)
+    setShowPositionAssignment(false)
+    setSelectedPosition(null)
+    setShowPlayerModal(false)
+    setDataProcessed(false)
+    setMessage('')
+    setMessageType('')
+    
+    // Reset file input
+    const fileInput = document.getElementById('csv-upload') as HTMLInputElement
+    if (fileInput) {
+      fileInput.value = ''
+    }
+  }
+
   const parseDuration = (duration: string): number => {
     // Parse duration in format "1:39:05" to minutes
     const parts = duration.split(':')
@@ -341,7 +392,8 @@ export default function MatchUpload() {
       // Get player data from squad players
       const playerInfo = squadPlayers[playerName]
       if (!playerInfo) {
-        console.log(`Player "${playerName}" not found in squad players, skipping`)
+        console.log(`Player "${playerName}" not found in squad players, available players:`, Object.keys(squadPlayers))
+        console.log(`Skipping player: "${playerName}"`)
         return
       }
       const playerId = playerInfo.id
@@ -535,6 +587,7 @@ export default function MatchUpload() {
 
       // Set processed data and initialize player statuses
       setProcessedData(processedPlayerData)
+      setDataProcessed(true)
       const initialStatuses: {[key: string]: string} = {}
       processedPlayerData.forEach(player => {
         initialStatuses[player.player_id] = 'starter' // Default to starter
@@ -643,6 +696,49 @@ export default function MatchUpload() {
 
     setUploading(true)
     try {
+      // First, create any missing players in squad_players table
+      const playersToCreate = []
+      for (const playerData of processedData) {
+        // Check if this is a fallback player (generated UUID)
+        const playerInfo = squadPlayers[playerData.player_name || '']
+        if (playerInfo && playerInfo.id.length === 36 && playerInfo.id.includes('-')) {
+          // This is likely a generated UUID, check if player exists in database
+          const { data: existingPlayer } = await supabase
+            .from('squad_players')
+            .select('player_id')
+            .eq('player_id', playerInfo.id)
+            .single()
+
+          if (!existingPlayer) {
+            // Split name for first_name and last_name
+            const nameParts = (playerInfo.fullName || playerData.player_name || '').split(' ')
+            const firstName = nameParts[0] || ''
+            const lastName = nameParts.slice(1).join(' ') || ''
+
+            playersToCreate.push({
+              player_id: playerInfo.id,
+              first_name: firstName,
+              last_name: lastName,
+              full_name: playerInfo.fullName || playerData.player_name,
+              profile_picture_url: null
+            })
+          }
+        }
+      }
+
+      // Insert missing players if any
+      if (playersToCreate.length > 0) {
+        console.log('Creating missing players in squad_players:', playersToCreate)
+        const { error: playersError } = await supabase
+          .from('squad_players')
+          .insert(playersToCreate)
+
+        if (playersError) {
+          console.error('Error creating players:', playersError)
+          throw new Error(`Failed to create missing players: ${playersError.message}`)
+        }
+      }
+
       // Save match info to database
       const { data: matchData, error: matchError } = await supabase
         .from('match_info')
@@ -671,13 +767,39 @@ export default function MatchUpload() {
         game_position: playerPositions[data.player_id] || null
       }))
 
-      const { error: dataError } = await supabase
+      console.log('=== CATAPULT MATCH DATA INSERTION ===')
+      console.log('Number of players to insert:', dataToInsert.length)
+      console.log('Sample data to insert:', dataToInsert[0])
+      console.log('Match ID:', matchData.match_id)
+      
+      // Validate data before insertion
+      const invalidData = dataToInsert.filter(data => 
+        !data.player_id || 
+        !data.match_id || 
+        typeof data.total_distance !== 'number' ||
+        typeof data.intensity !== 'number'
+      )
+      
+      if (invalidData.length > 0) {
+        console.error('Invalid data found:', invalidData)
+        throw new Error(`Found ${invalidData.length} records with invalid data`)
+      }
+      
+      console.log('Data validation passed. All records have required fields.')
+      console.log('All data to insert:', dataToInsert)
+
+      const { data: insertedData, error: dataError } = await supabase
         .from('catapult_match_data')
         .insert(dataToInsert)
+        .select()
 
       if (dataError) {
+        console.error('Error inserting catapult match data:', dataError)
         throw dataError
       }
+
+      console.log('Successfully inserted catapult match data:', insertedData)
+      console.log('=== END CATAPULT MATCH DATA INSERTION ===')
 
       setMessage(`Successfully uploaded match data for ${processedData.length} players`)
       setMessageType('success')
@@ -853,19 +975,35 @@ export default function MatchUpload() {
       {/* CSV Upload */}
       <div className="csv-upload">
         <h4>Upload Performance Data</h4>
-        <div className="upload-area">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileSelect}
-            disabled={uploading}
-            id="csv-upload"
-          />
-          <label htmlFor="csv-upload" className="upload-label">
-            <Upload size={24} />
-            {csvFile ? csvFile.name : 'Choose CSV file'}
-          </label>
-        </div>
+        {dataProcessed ? (
+          <div className="upload-area processed">
+            <div className="file-info">
+              <Upload size={24} />
+              <span>Data processed: {csvFile?.name}</span>
+            </div>
+            <button 
+              onClick={resetUpload}
+              className="reset-button"
+              disabled={uploading}
+            >
+              Upload New File
+            </button>
+          </div>
+        ) : (
+          <div className="upload-area">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              disabled={uploading}
+              id="csv-upload"
+            />
+            <label htmlFor="csv-upload" className="upload-label">
+              <Upload size={24} />
+              {csvFile ? csvFile.name : 'Choose CSV file'}
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Player Status Assignment */}

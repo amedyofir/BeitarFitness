@@ -150,11 +150,8 @@ export default function AllDataView() {
       const hsrDistance = records.reduce((sum, record) => sum + (record.high_speed_running_total_distance_b6 || 0), 0)
       const sprintDistance = records.reduce((sum, record) => sum + (record.very_high_speed_running_total_distance_b7 || 0), 0)
       
-      const virAcceleration = accelerationEfforts / 30
-      const virDeceleration = decelerationEfforts / 35
-      const virHighSpeedRunning = hsrDistance / 600
-      
-      const virIntensity = (virAcceleration + virDeceleration + virHighSpeedRunning) / 3
+      // Intensity calculation: sum(high_speed)*0.35/600 + sum(acceleration)*0.25/35 + sum(deceleration)*0.2/30 + sum(sprint)*0.2/100
+      const virIntensity = (hsrDistance * 0.35 / 600) + (accelerationEfforts * 0.25 / 35) + (decelerationEfforts * 0.2 / 30) + (sprintDistance * 0.2 / 100)
       
       const targetKm = records[0].target_km || 0
       const targetIntensity = records[0].target_intensity || 0

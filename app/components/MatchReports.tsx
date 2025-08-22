@@ -101,9 +101,9 @@ interface PlayerScore {
 // Position benchmarks for 100 minutes of play
 const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
   // Central Backs
-  'RCB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
-  'LCB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
-  'CB': { distance: 9500, highSpeed: 450, sprint: 50, intensity: 5.26 },
+  'RCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'LCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'CB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
   
   // Full Backs
   'RB': { distance: 11000, highSpeed: 900, sprint: 150, intensity: 9.55 },
@@ -117,27 +117,28 @@ const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
   'LCDM': { distance: 10500, highSpeed: 500, sprint: 100, intensity: 5.71 },
   
   // Central Midfielders
-  'RCM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'LCM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'CM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
-  'CAM': { distance: 11000, highSpeed: 700, sprint: 100, intensity: 7.27 },
+  'RCM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'LCM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'CM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'CAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
   
   // Wingers
   'RW': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'LW': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'RM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
   'LM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
-  'RAM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
-  'LAM': { distance: 10500, highSpeed: 800, sprint: 150, intensity: 9.05 },
+  'RAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
+  'LAM': { distance: 11000, highSpeed: 750, sprint: 100, intensity: 7.77 },
   
   // Strikers
-  'ST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'RST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'LST': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 },
-  'CF': { distance: 10000, highSpeed: 650, sprint: 150, intensity: 8.0 }
+  'ST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'RST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'LST': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 },
+  'CF': { distance: 10500, highSpeed: 650, sprint: 150, intensity: 7.6 }
 }
 
 export default function MatchReports() {
+  console.log('🔥 MATCH REPORTS COMPONENT LOADED - YOU SHOULD SEE THIS!')
   const [matches, setMatches] = useState<MatchWithData[]>([])
   const [currentMatchIndex, setCurrentMatchIndex] = useState<number>(0)
   const [loading, setLoading] = useState(true)
@@ -347,6 +348,10 @@ export default function MatchReports() {
   }
 
   const calculatePlayerScore = (player: CatapultMatchData): PlayerScore => {
+    if (!selectedMatchData) {
+      return { distanceScore: 0, intensityScore: 0 }
+    }
+
     const position = player.game_position || 'ST' // Default to striker if no position
     const benchmark = POSITION_BENCHMARKS[position] || POSITION_BENCHMARKS['ST']
     
@@ -356,34 +361,51 @@ export default function MatchReports() {
       ? parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]) + parseInt(timeParts[2]) / 60
       : 90 // Default to 90 minutes if parse fails
     
-    // Normalize player stats to 100 minutes
-    const normalizedDistance = (player.total_distance / actualMinutes) * 100
+    // Find maximum minutes played by any player in this match
+    const maxMinutes = Math.max(...selectedMatchData.player_data.map(p => {
+      const parts = p.total_duration.split(':')
+      return parts.length === 3 
+        ? parseInt(parts[0]) * 60 + parseInt(parts[1]) + parseInt(parts[2]) / 60
+        : 90
+    }))
+    
+    // Normalize player stats to the maximum minutes played in the match
+    const normalizedDistance = (player.total_distance / actualMinutes) * maxMinutes
     const actualIntensity = player.intensity * 100 // Convert to percentage
     
+    // Keep benchmark at full positional requirement (don't normalize to match time)
+    const benchmarkDistance = benchmark.distance // Always compare to full positional requirement
+    
     // Calculate raw performance ratios
-    const distanceRatio = normalizedDistance / benchmark.distance
+    const distanceRatio = normalizedDistance / benchmarkDistance
     const intensityRatio = actualIntensity / benchmark.intensity
     
-    // Apply very restrictive scoring curve:
-    // - 100% of benchmark = 100 score
-    // - 90% of benchmark = ~73 score (much more restrictive)
-    // - 80% of benchmark = ~51 score (heavily penalized)
-    // - 110% of benchmark = 110 score
-    // Uses a more aggressive quadratic curve
+    // Apply scoring curve
     const calculateRealisticScore = (ratio: number): number => {
       if (ratio >= 1.0) {
         // Above benchmark: linear scaling
         return Math.round(100 * ratio)
       } else {
         // Below benchmark: gentler curve
-        // Using a less aggressive power (1.5 instead of 2)
-        // This makes: 0.9 → ~80, 0.8 → ~65, 0.7 → ~52
         return Math.round(100 * Math.pow(ratio, 1.5))
       }
     }
     
     const distanceScore = calculateRealisticScore(distanceRatio)
     const intensityScore = calculateRealisticScore(intensityRatio)
+    
+    // Debug logging for ALL players (temporary)
+    if (true) {
+      console.log('=== CALCULATE PLAYER SCORE DEBUG ===')
+      console.log('Player:', player.player_name, 'Position:', player.game_position)
+      console.log('Benchmark used:', benchmark)
+      console.log('Player actual minutes:', actualMinutes)
+      console.log('Max minutes in match:', maxMinutes)
+      console.log('Player actual intensity (%):', actualIntensity)
+      console.log('Intensity ratio:', intensityRatio)
+      console.log('Intensity score:', intensityScore)
+      console.log('=== END CALCULATE DEBUG ===')
+    }
     
     return {
       distanceScore,
@@ -434,10 +456,10 @@ export default function MatchReports() {
   }
 
   const getScoreStyle = (score: number) => {
-    if (score >= 90) {
+    if (score >= 100) {
       return { color: '#4CAF50' } // green
-    } else if (score >= 80) {
-      return { color: '#FFA726' } // orange
+    } else if (score >= 93) {
+      return { color: '#FF9800' } // orange
     } else {
       return { color: '#F44336' } // red
     }
@@ -461,16 +483,33 @@ export default function MatchReports() {
         cursor: 'pointer'
       }
     } else {
-      // For distance and intensity columns, use score-based coloring
+      // For distance and intensity columns, use score-based coloring (matching pitch view)
       if ((column === 'distance' || column === 'intensity') && selectedMatchData) {
         const player = selectedMatchData.player_data.find(p => p.id === playerId)
         if (player) {
           const scores = calculatePlayerScore(player)
           const score = column === 'distance' ? scores.distanceScore : scores.intensityScore
-          if (score >= 90) {
+          
+          // Debug logging for central/attacking midfielders
+          if ((player.game_position === 'LCM' || player.game_position === 'CM' || player.game_position === 'RCM' || 
+               player.game_position === 'CAM' || player.game_position === 'RAM' || player.game_position === 'LAM') && column === 'intensity') {
+            console.log('=== MIDFIELDER INTENSITY DEBUG ===')
+            console.log('Player position:', player.game_position)
+            console.log('Player intensity (raw):', player.intensity)
+            console.log('Player intensity (%):', player.intensity * 100)
+            console.log('Expected benchmark intensity:', 7.77)
+            console.log('Expected ratio:', (player.intensity * 100) / 7.77)
+            console.log('Intensity score calculated:', scores.intensityScore)
+            console.log('Color threshold: >=100 green, >=93 orange, <93 red')
+            console.log('Score >= 100?', scores.intensityScore >= 100)
+            console.log('Score >= 93?', scores.intensityScore >= 93)
+            console.log('=== END DEBUG ===')
+          }
+          
+          if (score >= 100) {
             return { color: '#4CAF50', cursor: 'pointer' } // green
-          } else if (score >= 80) {
-            return { color: '#FFA726', cursor: 'pointer' } // orange
+          } else if (score >= 93) {
+            return { color: '#FF9800', cursor: 'pointer' } // orange
           } else {
             return { color: '#F44336', cursor: 'pointer' } // red
           }
@@ -758,18 +797,18 @@ export default function MatchReports() {
                                      return (
                                        <>
                                                                                  <div className="player-stat-item player-stat-score-distance" style={{
-                                          background: scores.distanceScore >= 90 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' :
-                                                     scores.distanceScore >= 80 ? 'linear-gradient(135deg, #FF9800, #F57C00)' :
-                                                     'linear-gradient(135deg, #FF5722, #D32F2F)'
+                                                                                  background: scores.distanceScore >= 100 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' :
+                                                   scores.distanceScore >= 93 ? 'linear-gradient(135deg, #FF9800, #F57C00)' :
+                                                   'linear-gradient(135deg, #FF5722, #D32F2F)'
                                         }}>
-                                           Distance: {Math.round(assignedPlayer.total_distance)}m{scores.distanceScore >= 110 ? ' ⭐' : ''}
+                                           DISTANCE: {Math.round(assignedPlayer.total_distance).toLocaleString()}{scores.distanceScore >= 110 ? ' ⭐' : ''}
                                          </div>
                                          <div className="player-stat-item player-stat-score-intensity" style={{
-                                           background: scores.intensityScore >= 90 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' : 
-                                                      scores.intensityScore >= 80 ? 'linear-gradient(135deg, #FF9800, #F57C00)' : 
+                                           background: scores.intensityScore >= 100 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' : 
+                                                      scores.intensityScore >= 93 ? 'linear-gradient(135deg, #FF9800, #F57C00)' : 
                                                       'linear-gradient(135deg, #FF5722, #D32F2F)'
                                          }}>
-                                                                                       Intensity %: {Math.round(scores.intensityScore)}{scores.intensityScore >= 110 ? ' ⭐' : ''}
+                                                                                       INTENSITY:{'\n'}{(assignedPlayer.intensity * 100).toFixed(1)}%{scores.intensityScore >= 110 ? ' ⭐' : ''}
                                          </div>
                                        </>
                                      );
@@ -870,6 +909,16 @@ export default function MatchReports() {
                             <td className="rank">{index + 1}</td>
                             <td className={`player-name player-name-${player.status || 'starter'}`}>
                               {(() => {
+                                // Debug logging for player names
+                                console.log('🏃‍♂️ STARTER Player name debug:', {
+                                  player_id: player.player_id,
+                                  player_name: player.player_name,
+                                  squad_players: player.squad_players,
+                                  full_name: player.squad_players?.full_name,
+                                  last_name: player.squad_players?.last_name,
+                                  first_name: player.squad_players?.first_name
+                                });
+                                
                                 // Special cases for specific players
                                 if (player.squad_players?.full_name === 'Yarden Cohen') {
                                   return 'Y. Cohen';
@@ -882,9 +931,19 @@ export default function MatchReports() {
                                 }
                                 
                                 // Default case: show last name only
-                                return player.squad_players ? 
-                                  (player.squad_players.last_name || player.squad_players.full_name?.split(' ').pop() || 'Unknown') : 
-                                  (player.player_name?.split(' ').pop() || 'Unknown');
+                                let result = 'Unknown';
+                                
+                                if (player.squad_players?.last_name) {
+                                  result = player.squad_players.last_name;
+                                } else if (player.squad_players?.full_name) {
+                                  result = player.squad_players.full_name.split(' ').pop() || player.squad_players.full_name;
+                                } else if (player.player_name) {
+                                  // Fallback to player_name field
+                                  result = player.player_name.split(' ').pop() || player.player_name;
+                                }
+                                
+                                console.log('🏃‍♂️ Final name result:', result);
+                                return result;
                               })()}
                             </td>
                             <td 
@@ -990,9 +1049,19 @@ export default function MatchReports() {
                                 }
                                 
                                 // Default case: show last name only
-                                return player.squad_players ? 
-                                  (player.squad_players.last_name || player.squad_players.full_name?.split(' ').pop() || 'Unknown') : 
-                                  (player.player_name?.split(' ').pop() || 'Unknown');
+                                let result = 'Unknown';
+                                
+                                if (player.squad_players?.last_name) {
+                                  result = player.squad_players.last_name;
+                                } else if (player.squad_players?.full_name) {
+                                  result = player.squad_players.full_name.split(' ').pop() || player.squad_players.full_name;
+                                } else if (player.player_name) {
+                                  // Fallback to player_name field
+                                  result = player.player_name.split(' ').pop() || player.player_name;
+                                }
+                                
+                                console.log('🏃‍♂️ Final name result:', result);
+                                return result;
                               })()}
                             </td>
                             <td 

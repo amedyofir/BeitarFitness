@@ -220,15 +220,8 @@ export default function WeeklyAnalysis() {
       const hsrDistance = records.reduce((sum, record) => sum + (record.high_speed_running_total_distance_b6 || 0), 0)
       const sprintDistance = records.reduce((sum, record) => sum + (record.very_high_speed_running_total_distance_b7 || 0), 0)
       
-      // Calculate virtual intensity (similar to your SQL query)
-      const virTotalDistance = totalDistance / 10000
-      const virSprintDistance = sprintDistance / 100
-      const virHighSpeedRunning = hsrDistance / 600
-      const virAccelerationDeceleration = (accelerationEfforts + decelerationEfforts) / 65
-      const virAcceleration = accelerationEfforts / 30
-      const virDeceleration = decelerationEfforts / 35
-      
-      const virIntensity = (virAcceleration + virDeceleration + virHighSpeedRunning) / 3
+      // Intensity calculation: sum(high_speed)*0.35/600 + sum(acceleration)*0.25/35 + sum(deceleration)*0.2/30 + sum(sprint)*0.2/100
+      const virIntensity = (hsrDistance * 0.35 / 600) + (accelerationEfforts * 0.25 / 35) + (decelerationEfforts * 0.2 / 30) + (sprintDistance * 0.2 / 100)
       
       // Use the first record's target values (they should be consistent for the same player/week)
       const targetKm = records[0].target_km || 0
