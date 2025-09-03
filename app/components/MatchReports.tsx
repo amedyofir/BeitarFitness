@@ -101,9 +101,9 @@ interface PlayerScore {
 // Position benchmarks for 100 minutes of play
 const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
   // Central Backs
-  'RCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
-  'LCB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
-  'CB': { distance: 9500, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'RCB': { distance: 10000, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'LCB': { distance: 10000, highSpeed: 600, sprint: 80, intensity: 7.15 },
+  'CB': { distance: 10000, highSpeed: 600, sprint: 80, intensity: 7.15 },
   
   // Full Backs
   'RB': { distance: 11000, highSpeed: 900, sprint: 150, intensity: 9.55 },
@@ -385,8 +385,11 @@ export default function MatchReports() {
       if (ratio >= 1.0) {
         // Above benchmark: linear scaling
         return Math.round(100 * ratio)
+      } else if (ratio >= 0.8) {
+        // Close to benchmark: nearly linear scaling (gentle penalty)
+        return Math.round(100 * Math.pow(ratio, 1.1))
       } else {
-        // Below benchmark: gentler curve
+        // Well below benchmark: steeper curve
         return Math.round(100 * Math.pow(ratio, 1.5))
       }
     }
@@ -394,16 +397,18 @@ export default function MatchReports() {
     const distanceScore = calculateRealisticScore(distanceRatio)
     const intensityScore = calculateRealisticScore(intensityRatio)
     
-    // Debug logging for ALL players (temporary)
-    if (true) {
+    // Debug logging for strikers and specific cases (temporary)
+    if (position === 'ST' || position === 'RST' || position === 'LST' || actualIntensity <= 10) {
       console.log('=== CALCULATE PLAYER SCORE DEBUG ===')
       console.log('Player:', player.player_name, 'Position:', player.game_position)
       console.log('Benchmark used:', benchmark)
       console.log('Player actual minutes:', actualMinutes)
       console.log('Max minutes in match:', maxMinutes)
       console.log('Player actual intensity (%):', actualIntensity)
+      console.log('Benchmark intensity:', benchmark.intensity)
       console.log('Intensity ratio:', intensityRatio)
       console.log('Intensity score:', intensityScore)
+      console.log('Expected color: >=99 green, >=87 orange, <87 red')
       console.log('=== END CALCULATE DEBUG ===')
     }
     
@@ -456,9 +461,9 @@ export default function MatchReports() {
   }
 
   const getScoreStyle = (score: number) => {
-    if (score >= 100) {
+    if (score >= 99) {
       return { color: '#4CAF50' } // green
-    } else if (score >= 93) {
+    } else if (score >= 87) {
       return { color: '#FF9800' } // orange
     } else {
       return { color: '#F44336' } // red
@@ -500,15 +505,15 @@ export default function MatchReports() {
             console.log('Expected benchmark intensity:', 7.77)
             console.log('Expected ratio:', (player.intensity * 100) / 7.77)
             console.log('Intensity score calculated:', scores.intensityScore)
-            console.log('Color threshold: >=100 green, >=93 orange, <93 red')
-            console.log('Score >= 100?', scores.intensityScore >= 100)
-            console.log('Score >= 93?', scores.intensityScore >= 93)
+            console.log('Color threshold: >=99 green, >=87 orange, <87 red')
+            console.log('Score >= 99?', scores.intensityScore >= 99)
+            console.log('Score >= 87?', scores.intensityScore >= 87)
             console.log('=== END DEBUG ===')
           }
           
-          if (score >= 100) {
+          if (score >= 99) {
             return { color: '#4CAF50', cursor: 'pointer' } // green
-          } else if (score >= 93) {
+          } else if (score >= 87) {
             return { color: '#FF9800', cursor: 'pointer' } // orange
           } else {
             return { color: '#F44336', cursor: 'pointer' } // red
@@ -804,8 +809,8 @@ export default function MatchReports() {
                                            DISTANCE: {Math.round(assignedPlayer.total_distance).toLocaleString()}{scores.distanceScore >= 110 ? ' ⭐' : ''}
                                          </div>
                                          <div className="player-stat-item player-stat-score-intensity" style={{
-                                           background: scores.intensityScore >= 100 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' : 
-                                                      scores.intensityScore >= 93 ? 'linear-gradient(135deg, #FF9800, #F57C00)' : 
+                                           background: scores.intensityScore >= 99 ? 'linear-gradient(135deg, #4CAF50, #2E7D32)' : 
+                                                      scores.intensityScore >= 87 ? 'linear-gradient(135deg, #FF9800, #F57C00)' : 
                                                       'linear-gradient(135deg, #FF5722, #D32F2F)'
                                          }}>
                                                                                        INTENSITY:{'\n'}{(assignedPlayer.intensity * 100).toFixed(1)}%{scores.intensityScore >= 110 ? ' ⭐' : ''}

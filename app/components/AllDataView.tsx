@@ -65,15 +65,32 @@ export default function AllDataView() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
-        .from('weekly_load')
-        .select('*')
-        .order('date', { ascending: true })
-
-      if (error) {
-        setError(`Error fetching data: ${error.message}`)
-        return
+      // Fetch all data using pagination to bypass Supabase limits
+      const fetchAllData = async () => {
+        let allData = []
+        let from = 0
+        const pageSize = 1000
+        
+        while (true) {
+          const { data: pageData, error: pageError } = await supabase
+            .from('weekly_load')
+            .select('*')
+            .order('date', { ascending: true })
+            .range(from, from + pageSize - 1)
+          
+          if (pageError) throw pageError
+          if (!pageData || pageData.length === 0) break
+          
+          allData.push(...pageData)
+          
+          if (pageData.length < pageSize) break
+          from += pageSize
+        }
+        
+        return allData
       }
+      
+      const data = await fetchAllData()
 
       if (!data || data.length === 0) {
         setError('No data found. Please upload some fitness data first.')
@@ -115,9 +132,9 @@ export default function AllDataView() {
       setWeeks(sortedWeeks)
       setPlayers(Array.from(playerSet).sort())
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error processing data:', err)
-      setError('Error processing data. Please try again.')
+      setError(`Error processing data: ${err.message || 'Please try again.'}`)
     } finally {
       setLoading(false)
     }
@@ -142,7 +159,9 @@ export default function AllDataView() {
     const result: WeeklyData[] = []
     
     Object.entries(weeklyGroups).forEach(([key, records]) => {
-      const [player_name, week] = key.split('_', 2)
+      const underscoreIndex = key.indexOf('_')
+      const player_name = key.substring(0, underscoreIndex)
+      const week = key.substring(underscoreIndex + 1)
       
       const totalDistance = records.reduce((sum, record) => sum + (record.total_distance || 0), 0)
       const accelerationEfforts = records.reduce((sum, record) => sum + (record.acceleration_b3_efforts_gen2 || 0), 0)

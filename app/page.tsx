@@ -10,10 +10,12 @@ import BarChartView from './components/BarChartView'
 import LatestDataBand from './components/LatestDataBand'
 import PlayersView from './components/PlayersView'
 import CoachDashboard from './components/CoachDashboard'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp } from 'lucide-react'
+import League from './components/League'
+import MatchdayWizard from './components/MatchdayWizard'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText } from 'lucide-react'
 
 export default function Home() {
-  const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'coaches' | 'players'>('coach-dashboard')
+  const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'coaches' | 'players' | 'league' | 'matchday-wizard'>('coach-dashboard')
   const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
 
   return (
@@ -68,6 +70,24 @@ export default function Home() {
             >
               <Users />
               Players
+            </button>
+            <button
+              onClick={() => {
+                setActiveSection('league')
+              }}
+              className={`section-button ${activeSection === 'league' ? 'active' : ''}`}
+            >
+              <Trophy />
+              League
+            </button>
+            <button
+              onClick={() => {
+                setActiveSection('matchday-wizard')
+              }}
+              className={`section-button ${activeSection === 'matchday-wizard' ? 'active' : ''}`}
+            >
+              <FileText />
+              Matchday Wizard
             </button>
           </nav>
 
@@ -146,6 +166,20 @@ export default function Home() {
           {activeSection === 'players' && (
             <div className="tab-content">
               <PlayersView />
+            </div>
+          )}
+
+          {/* League Section */}
+          {activeSection === 'league' && (
+            <div className="tab-content">
+              <League />
+            </div>
+          )}
+
+          {/* Matchday Wizard Section */}
+          {activeSection === 'matchday-wizard' && (
+            <div className="tab-content">
+              <MatchdayWizard />
             </div>
           )}
         </div>

@@ -97,21 +97,13 @@ export default function DistanceView() {
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
     
-    return `${formatDateToDDMMYY(weekStart)} - ${formatDateToDDMMYY(weekEnd)}`
+    return `${weekStart.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
   }
 
   // Helper function to extract start date from week string
   const getStartDateFromWeekString = (weekString: string): Date => {
-    const startDateStr = weekString.split(' - ')[0] // Gets "DD-MM-YY"
-    
-    // Parse the DD-MM-YY format
-    const [day, month, yearShort] = startDateStr.split('-')
-    const year = 2000 + parseInt(yearShort) // Convert YY to full year
-    
-    // Create date in local timezone at noon to avoid timezone edge cases
-    // Note: month is 0-based in JavaScript Date
-    const date = new Date(year, parseInt(month) - 1, parseInt(day), 12, 0, 0, 0)
-    return date
+    const startDateStr = weekString.split(' - ')[0]
+    return new Date(startDateStr)
   }
 
   useEffect(() => {
@@ -122,11 +114,34 @@ export default function DistanceView() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
-        .from('weekly_load')
-        .select('*')
-        .order('date', { ascending: true })
-
+      // Fetch all data using pagination to bypass Supabase limits
+      const fetchAllData = async () => {
+        let allData = []
+        let from = 0
+        const pageSize = 1000
+        
+        while (true) {
+          const { data: pageData, error: pageError } = await supabase
+            .from('weekly_load')
+            .select('*')
+            .order('date', { ascending: true })
+            .range(from, from + pageSize - 1)
+          
+          if (pageError) throw pageError
+          if (!pageData || pageData.length === 0) break
+          
+          allData.push(...pageData)
+          
+          if (pageData.length < pageSize) break
+          from += pageSize
+        }
+        
+        return allData
+      }
+      
+      const data = await fetchAllData()
+      const error = null
+      
       if (error) {
         setError(`Error fetching data: ${error.message}`)
         return
@@ -179,6 +194,7 @@ export default function DistanceView() {
   }
 
   const processWeeklyData = (data: any[]): WeeklyData[] => {
+    
     const weeklyGroups: { [key: string]: any[] } = {}
     
     data.forEach(record => {
@@ -197,7 +213,9 @@ export default function DistanceView() {
     const result: WeeklyData[] = []
     
     Object.entries(weeklyGroups).forEach(([key, records]) => {
-      const [player_name, week] = key.split('_', 2)
+      const underscoreIndex = key.indexOf('_')
+      const player_name = key.substring(0, underscoreIndex)
+      const week = key.substring(underscoreIndex + 1)
       
       const totalDistance = records.reduce((sum, record) => sum + (record.total_distance || 0), 0)
       const targetKm = records[0].target_km || 0
@@ -224,9 +242,9 @@ export default function DistanceView() {
   const getPerformanceClass = (actualValue: number, targetValue: number): string => {
     if (targetValue === 0) return 'performance-none'
     const percentage = (actualValue / targetValue) * 100
-    if (percentage < 20) return 'performance-critical'
-    if (percentage >= 100) return 'performance-excellent'
-    return 'performance-below'
+    if (percentage >= 97) return 'performance-excellent'  // Green: 97% and above
+    if (percentage >= 85) return 'performance-warning'    // Orange: 85%-97%  
+    return 'performance-critical'                          // Red: below 85%
   }
 
   const formatPlayerName = (fullName: string): string => {

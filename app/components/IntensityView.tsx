@@ -128,21 +128,13 @@ export default function IntensityView() {
     const weekStart = getWeekStartDate(date)
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
-    return `${formatDateToDDMMYY(weekStart)} - ${formatDateToDDMMYY(weekEnd)}`
+    return `${weekStart.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`
   }
 
   // Helper function to extract start date from week string
   const getStartDateFromWeekString = (weekString: string): Date => {
     const startDateStr = weekString.split(' - ')[0]
-    
-    // Parse DD-MM-YY format
-    const [day, month, year] = startDateStr.split('-').map(Number)
-    const fullYear = year < 50 ? 2000 + year : 1900 + year
-    
-    // Create date (month is 0-indexed in Date constructor)
-    const date = new Date(fullYear, month - 1, day, 12, 0, 0, 0)
-    
-    return date
+    return new Date(startDateStr)
   }
 
   // Helper function to get month index from month name
@@ -160,10 +152,33 @@ export default function IntensityView() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
-        .from('weekly_load')
-        .select('*')
-        .order('date', { ascending: true })
+      // Fetch all data using pagination to bypass Supabase limits
+      const fetchAllData = async () => {
+        let allData = []
+        let from = 0
+        const pageSize = 1000
+        
+        while (true) {
+          const { data: pageData, error: pageError } = await supabase
+            .from('weekly_load')
+            .select('*')
+            .order('date', { ascending: true })
+            .range(from, from + pageSize - 1)
+          
+          if (pageError) throw pageError
+          if (!pageData || pageData.length === 0) break
+          
+          allData.push(...pageData)
+          
+          if (pageData.length < pageSize) break
+          from += pageSize
+        }
+        
+        return allData
+      }
+      
+      const data = await fetchAllData()
+      const error = null
 
       if (error) {
         setError(`Error fetching data: ${error.message}`)
@@ -234,7 +249,9 @@ export default function IntensityView() {
     const result: WeeklyData[] = []
     
     Object.entries(weeklyGroups).forEach(([key, records]) => {
-      const [player_name, week] = key.split('_', 2)
+      const underscoreIndex = key.indexOf('_')
+      const player_name = key.substring(0, underscoreIndex)
+      const week = key.substring(underscoreIndex + 1)
       
       // Calculate totals for the weighted intensity formula
       const accelerationEfforts = records.reduce((sum, record) => sum + (record.acceleration_b3_efforts_gen2 || 0), 0)
@@ -263,39 +280,32 @@ export default function IntensityView() {
     return (intensity * 100).toFixed(0) + '%'
   }
 
-  const getPerformanceClass = (actualValue: number, targetValue: number): string => {
-    if (targetValue === 0 || targetValue === null || targetValue === undefined) {
+  const getPerformanceClass = (playerValue: number, weekAverage: number): string => {
+    if (weekAverage === 0 || weekAverage === null || weekAverage === undefined) {
       return 'performance-none'
     }
     
-    const percentage = (actualValue / targetValue) * 100
-    
-    if (percentage < 20) return 'performance-critical'  // Yellow - Very low performance
-    if (percentage >= 100) return 'performance-excellent'  // Green - Meets or exceeds target
-    return 'performance-below'  // Red - Below target but above 20%
+    // Compare player value to average
+    if (playerValue >= weekAverage) return 'performance-excellent'  // Green - Above average
+    if (playerValue >= weekAverage * 0.9) return 'performance-warning'  // Orange - Within 10% of average
+    return 'performance-critical'  // Red - More than 10% below average
   }
 
   const getIntensityPerformanceClass = (playerIntensity: number, week: string): string => {
-    // Get all valid intensities for this week to calculate median
+    // Get all valid intensities for this week to calculate average
     const weekIntensities = players
       .map(player => playerData[player]?.[week]?.vir_intensity)
       .filter(intensity => intensity && intensity > 0)
-      .map(intensity => intensity * 100) // Convert to percentage
     
     if (weekIntensities.length === 0) return 'performance-none'
     
-    // Calculate median
-    const sortedIntensities = [...weekIntensities].sort((a, b) => a - b)
-    const median = sortedIntensities.length % 2 === 0
-      ? (sortedIntensities[sortedIntensities.length / 2 - 1] + sortedIntensities[sortedIntensities.length / 2]) / 2
-      : sortedIntensities[Math.floor(sortedIntensities.length / 2)]
+    // Calculate average
+    const average = weekIntensities.reduce((sum, intensity) => sum + intensity, 0) / weekIntensities.length
     
-    const playerPercentage = playerIntensity * 100
-    
-    // Color based on comparison to median (broader yellow range)
-    if (playerPercentage >= median * 1.2) return 'performance-excellent'  // Green - 20% above median
-    if (playerPercentage <= median * 0.8) return 'performance-below'       // Red - 20% below median  
-    return 'performance-critical'  // Yellow - Within ±20% of median
+    // Compare player to average
+    if (playerIntensity >= average) return 'performance-excellent'  // Green - Above average
+    if (playerIntensity >= average * 0.9) return 'performance-warning'  // Orange - Within 10% of average
+    return 'performance-critical'  // Red - More than 10% below average
   }
 
 
