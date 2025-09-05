@@ -170,6 +170,12 @@ export default function WeeklyAnalysis() {
       const weekTargetsMap: {[week: string]: {target_km: number, target_intensity: number}} = {}
 
       processedData.forEach(record => {
+        // Skip excluded players (including name variations)
+        const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
+        if (excludedPlayers.includes(record.player_name)) {
+          return
+        }
+        
         if (!playerWeeklyData[record.player_name]) {
           playerWeeklyData[record.player_name] = {}
         }
@@ -218,6 +224,12 @@ export default function WeeklyAnalysis() {
     
     // Group by player and week
     data.forEach(record => {
+      // Skip excluded players (including name variations)
+      const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
+      if (excludedPlayers.includes(record.player_name)) {
+        return
+      }
+      
       const date = new Date(record.date)
       const week = generateWeekString(date)
       

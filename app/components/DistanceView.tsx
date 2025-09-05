@@ -160,6 +160,12 @@ export default function DistanceView() {
       const playerSet = new Set<string>()
 
       processedData.forEach(record => {
+        // Skip excluded players (including name variations)
+        const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
+        if (excludedPlayers.includes(record.player_name)) {
+          return
+        }
+        
         if (!playerWeeklyData[record.player_name]) {
           playerWeeklyData[record.player_name] = {}
         }
@@ -198,6 +204,12 @@ export default function DistanceView() {
     const weeklyGroups: { [key: string]: any[] } = {}
     
     data.forEach(record => {
+      // Skip excluded players (including name variations)
+      const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
+      if (excludedPlayers.includes(record.player_name)) {
+        return
+      }
+      
       const date = new Date(record.date)
       const week = generateWeekString(date)
       
