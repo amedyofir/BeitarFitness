@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Shield, Download } from 'lucide-react'
-import html2canvas from 'html2canvas'
+import { exportElementForWhatsApp, downloadImage, validateImageForWhatsApp } from '../../utils/whatsappExport'
 
 interface MatchdayReportProps {
   csvData: any[]
@@ -23,19 +23,51 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     if (!reportElement) return
 
     try {
-      const canvas = await html2canvas(reportElement, {
-        backgroundColor: '#0a0a0a',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true
+      console.log('Starting WhatsApp-optimized export...')
+      
+      // Export with WhatsApp optimization
+      const result = await exportElementForWhatsApp(reportElement, {
+        backgroundColor: '#0b0b0f',
+        filename: `Matchday_${matchdayNumber}_Report`,
+        dualFormat: true,
+        captureWidth: 900,  // Match the actual report width
+        maintainAspectRatio: true,
+        scale: 3  // Higher scale for better quality
       })
       
-      const link = document.createElement('a')
-      link.download = `Matchday_${matchdayNumber}_Full_Report.png`
-      link.href = canvas.toDataURL('image/png')
-      link.click()
+      // Validate PNG for WhatsApp
+      const pngValidation = await validateImageForWhatsApp(result.png)
+      console.log('PNG validation:', pngValidation)
+      
+      // Download primary format (PNG)
+      downloadImage(
+        result.png, 
+        `Matchday_${matchdayNumber}_Report.png`,
+        { showMetadata: true }
+      )
+      
+      // If PNG is too large or has issues, also offer JPEG
+      if (!pngValidation.isValid && result.jpeg) {
+        console.log('PNG has issues, also providing JPEG fallback')
+        setTimeout(() => {
+          downloadImage(
+            result.jpeg, 
+            `Matchday_${matchdayNumber}_Report.jpg`,
+            { showMetadata: true }
+          )
+        }, 1000)
+      }
+      
+      console.log('Export completed:', {
+        pngSize: `${(result.metadata.pngSize / 1024 / 1024).toFixed(1)}MB`,
+        jpegSize: result.metadata.jpegSize ? `${(result.metadata.jpegSize / 1024 / 1024).toFixed(1)}MB` : 'N/A',
+        dimensions: `${result.metadata.width}x${result.metadata.height}`,
+        whatsappReady: pngValidation.isValid
+      })
+      
     } catch (error) {
-      console.error('Error downloading report:', error)
+      console.error('Enhanced export failed:', error)
+      alert('Export failed. Please try again.')
     }
   }
 
@@ -56,11 +88,244 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   // Sort teams by rank
   const sortedTeams = [...csvData].sort((a, b) => parseInt(a.Rank) - parseInt(b.Rank))
 
+  // Calculate Press Scores (1-100 proportional)
+  const calculatePressScores = () => {
+    // Get all values for normalization
+    const ppda40Values = sortedTeams.map(t => parseFloat(t.ppda40) || 0)
+    const avgSeqTimeValues = sortedTeams.map(t => parseFloat(t.AvgSeqTime) || 0)
+    const posWonValues = sortedTeams.map(t => parseFloat(t.poswonopponenthalf) || 0)
+
+    // Get min/max for normalization
+    const ppda40Min = Math.min(...ppda40Values)
+    const ppda40Max = Math.max(...ppda40Values)
+    const avgSeqMin = Math.min(...avgSeqTimeValues)
+    const avgSeqMax = Math.max(...avgSeqTimeValues)
+    const posWonMin = Math.min(...posWonValues)
+    const posWonMax = Math.max(...posWonValues)
+
+    return sortedTeams.map(team => {
+      const ppda40 = parseFloat(team.ppda40) || 0
+      const avgSeq = parseFloat(team.AvgSeqTime) || 0
+      const posWon = parseFloat(team.poswonopponenthalf) || 0
+
+      // Calculate proportional scores (1-100)
+      // For PPDA40 and AvgSeq: lower is better, so invert the scale
+      const ppda40Score = ppda40Max > ppda40Min ? 
+        ((ppda40Max - ppda40) / (ppda40Max - ppda40Min)) * 99 + 1 : 50
+
+      const avgSeqScore = avgSeqMax > avgSeqMin ? 
+        ((avgSeqMax - avgSeq) / (avgSeqMax - avgSeqMin)) * 99 + 1 : 50
+
+      // For possession won: higher is better
+      const posWonScore = posWonMax > posWonMin ? 
+        ((posWon - posWonMin) / (posWonMax - posWonMin)) * 99 + 1 : 50
+
+      // Average the three scores
+      const pressScore = (ppda40Score + avgSeqScore + posWonScore) / 3
+
+      return {
+        ...team,
+        ppda40Score,
+        avgSeqScore,
+        posWonScore,
+        pressScore
+      }
+    })
+  }
+
+  const teamsWithPressScores = calculatePressScores().sort((a, b) => b.pressScore - a.pressScore)
+
+  // Calculate Duels Scores (1-100 proportional)
+  const calculateDuelsScores = () => {
+    // Get all values for normalization
+    const groundValues = sortedTeams.map(t => parseFloat(t['ground%']) || 0)
+    const aerialValues = sortedTeams.map(t => parseFloat(t['Aerial%']) || 0)
+
+    // Get min/max for normalization
+    const groundMin = Math.min(...groundValues)
+    const groundMax = Math.max(...groundValues)
+    const aerialMin = Math.min(...aerialValues)
+    const aerialMax = Math.max(...aerialValues)
+
+    return sortedTeams.map(team => {
+      const ground = parseFloat(team['ground%']) || 0
+      const aerial = parseFloat(team['Aerial%']) || 0
+
+      // Calculate proportional scores (1-100) - higher is better for both
+      const groundScore = groundMax > groundMin ? 
+        ((ground - groundMin) / (groundMax - groundMin)) * 99 + 1 : 50
+
+      const aerialScore = aerialMax > aerialMin ? 
+        ((aerial - aerialMin) / (aerialMax - aerialMin)) * 99 + 1 : 50
+
+      // Weighted average: 70% ground + 30% aerial
+      const duelsScore = (groundScore * 0.7) + (aerialScore * 0.3)
+
+      return {
+        ...team,
+        groundScore,
+        aerialScore,
+        duelsScore
+      }
+    })
+  }
+
+  const teamsWithDuelsScores = calculateDuelsScores().sort((a, b) => b.duelsScore - a.duelsScore)
+
+  // Calculate Assist Zone Scores (1-100 proportional)
+  const calculateAssistZoneScores = () => {
+    // Get all values for normalization
+    const passAssistValues = sortedTeams.map(t => parseFloat(t.passfromassisttogolden) || 0)
+    const shotFromGoldenValues = sortedTeams.map(t => parseFloat(t.shotfromgolden) || 0)
+    const crossPassRatioValues = sortedTeams.map(t => {
+      const crossOpen = parseFloat(t.CrossOpen) || 0
+      const passAssist = parseFloat(t.passfromassisttogolden) || 1
+      return crossOpen / passAssist
+    })
+
+    // Get min/max for normalization
+    const passAssistMin = Math.min(...passAssistValues)
+    const passAssistMax = Math.max(...passAssistValues)
+    const shotFromGoldenMin = Math.min(...shotFromGoldenValues)
+    const shotFromGoldenMax = Math.max(...shotFromGoldenValues)
+    const crossPassRatioMin = Math.min(...crossPassRatioValues)
+    const crossPassRatioMax = Math.max(...crossPassRatioValues)
+
+    return sortedTeams.map(team => {
+      const passAssist = parseFloat(team.passfromassisttogolden) || 0
+      const shotFromGolden = parseFloat(team.shotfromgolden) || 0
+      const crossOpen = parseFloat(team.CrossOpen) || 0
+      const crossPassRatio = crossOpen / (passAssist || 1)
+
+      // Calculate proportional scores (1-100) - higher is better for all
+      const passAssistScore = passAssistMax > passAssistMin ? 
+        ((passAssist - passAssistMin) / (passAssistMax - passAssistMin)) * 99 + 1 : 50
+
+      const shotFromGoldenScore = shotFromGoldenMax > shotFromGoldenMin ? 
+        ((shotFromGolden - shotFromGoldenMin) / (shotFromGoldenMax - shotFromGoldenMin)) * 99 + 1 : 50
+
+      const crossPassRatioScore = crossPassRatioMax > crossPassRatioMin ? 
+        ((crossPassRatio - crossPassRatioMin) / (crossPassRatioMax - crossPassRatioMin)) * 99 + 1 : 50
+
+      // Weighted average: 40% pass assist + 20% shot from golden + 40% cross/pass ratio
+      const assistZoneScore = (passAssistScore * 0.4) + (shotFromGoldenScore * 0.2) + (crossPassRatioScore * 0.4)
+
+      return {
+        ...team,
+        passAssistScore,
+        shotFromGoldenScore,
+        crossPassRatioScore,
+        crossPassRatio,
+        assistZoneScore
+      }
+    })
+  }
+
+  const teamsWithAssistZoneScores = calculateAssistZoneScores().sort((a, b) => b.assistZoneScore - a.assistZoneScore)
+
+  // Calculate Shot Location Scores (1-100 proportional)
+  const calculateShotLocationScores = () => {
+    // Get all values for normalization
+    const sogPenaltyValues = sortedTeams.map(t => parseFloat(t.SOG_from_penalty_area) || 0)
+    const sogBoxValues = sortedTeams.map(t => parseFloat(t.SOG_from_box) || 0)
+    const shotFromBoxValues = sortedTeams.map(t => parseFloat(t.shotfrombox) || 0)
+    const shotFromGoldenPercentValues = sortedTeams.map(t => {
+      const shotFromGolden = parseFloat(t.shotfromgolden) || 0
+      const totalShots = parseFloat(t.ShtIncBl) || 1
+      return (shotFromGolden / totalShots) * 100
+    })
+
+    // Get min/max for normalization
+    const sogPenaltyMin = Math.min(...sogPenaltyValues)
+    const sogPenaltyMax = Math.max(...sogPenaltyValues)
+    const sogBoxMin = Math.min(...sogBoxValues)
+    const sogBoxMax = Math.max(...sogBoxValues)
+    const shotFromBoxMin = Math.min(...shotFromBoxValues)
+    const shotFromBoxMax = Math.max(...shotFromBoxValues)
+    const shotFromGoldenPercentMin = Math.min(...shotFromGoldenPercentValues)
+    const shotFromGoldenPercentMax = Math.max(...shotFromGoldenPercentValues)
+
+    return sortedTeams.map(team => {
+      const sogPenalty = parseFloat(team.SOG_from_penalty_area) || 0
+      const sogBox = parseFloat(team.SOG_from_box) || 0
+      const shotFromBox = parseFloat(team.shotfrombox) || 0
+      const shotFromGolden = parseFloat(team.shotfromgolden) || 0
+      const totalShots = parseFloat(team.ShtIncBl) || 1
+      const shotFromGoldenPercent = (shotFromGolden / totalShots) * 100
+
+      // Calculate proportional scores (1-100) - higher is better for all
+      const sogPenaltyScore = sogPenaltyMax > sogPenaltyMin ? 
+        ((sogPenalty - sogPenaltyMin) / (sogPenaltyMax - sogPenaltyMin)) * 99 + 1 : 50
+
+      const sogBoxScore = sogBoxMax > sogBoxMin ? 
+        ((sogBox - sogBoxMin) / (sogBoxMax - sogBoxMin)) * 99 + 1 : 50
+
+      const shotFromBoxScore = shotFromBoxMax > shotFromBoxMin ? 
+        ((shotFromBox - shotFromBoxMin) / (shotFromBoxMax - shotFromBoxMin)) * 99 + 1 : 50
+
+      const shotFromGoldenPercentScore = shotFromGoldenPercentMax > shotFromGoldenPercentMin ? 
+        ((shotFromGoldenPercent - shotFromGoldenPercentMin) / (shotFromGoldenPercentMax - shotFromGoldenPercentMin)) * 99 + 1 : 50
+
+      // Location score is based only on Shot from Golden %
+      const locationScore = shotFromGoldenPercentScore
+
+      return {
+        ...team,
+        sogPenaltyScore,
+        sogBoxScore,
+        shotFromBoxScore,
+        shotFromGoldenPercent,
+        shotFromGoldenPercentScore,
+        locationScore
+      }
+    })
+  }
+
+  const teamsWithShotLocationScores = calculateShotLocationScores().sort((a, b) => b.shotFromGoldenPercent - a.shotFromGoldenPercent)
+
+  // Calculate Shot Quality Scores (1-100 proportional)
+  const calculateShotQualityScores = () => {
+    // Get all values for normalization - Quality score is SOG_from_penalty_area / ShtIncBl
+    const qualityPercentValues = sortedTeams.map(t => {
+      const sogPenalty = parseFloat(t.SOG_from_penalty_area) || 0
+      const totalShots = parseFloat(t.ShtIncBl) || 1
+      return (sogPenalty / totalShots) * 100
+    })
+
+    // Get min/max for normalization
+    const qualityPercentMin = Math.min(...qualityPercentValues)
+    const qualityPercentMax = Math.max(...qualityPercentValues)
+
+    return sortedTeams.map(team => {
+      const sogPenalty = parseFloat(team.SOG_from_penalty_area) || 0
+      const totalShots = parseFloat(team.ShtIncBl) || 1
+      const qualityPercent = (sogPenalty / totalShots) * 100
+
+      // Calculate proportional score (1-100) - higher is better
+      const qualityScore = qualityPercentMax > qualityPercentMin ? 
+        ((qualityPercent - qualityPercentMin) / (qualityPercentMax - qualityPercentMin)) * 99 + 1 : 50
+
+      return {
+        ...team,
+        qualityPercent,
+        qualityScore
+      }
+    })
+  }
+
+  const teamsWithShotQualityScores = calculateShotQualityScores().sort((a, b) => b.qualityPercent - a.qualityPercent)
+
   // Helper functions
   const formatPercentage = (value: any) => {
     if (typeof value === 'string' && value.includes('%')) return value
     if (!value || isNaN(value)) return '0%'
     return `${parseFloat(value).toFixed(1)}%`
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 66) return '#22c55e' // Green - Good
+    if (score >= 33) return '#f59e0b' // Orange - Middle  
+    return '#ef4444' // Red - Bad
   }
 
   const getColorByValue = (value: number, min: number, max: number, inverse = false) => {
@@ -82,12 +347,12 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: '#0b0b0f' }}>
       {/* Download Button */}
       <button
         onClick={downloadReport}
         style={{
-          position: 'fixed',
+          position: 'absolute',
           top: '20px',
           right: '20px',
           zIndex: 1000,
@@ -103,87 +368,136 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
       </button>
 
       <div id="matchday-report-full" style={{
-        background: '#0a0a0a',
+        background: '#0b0b0f',
         padding: '20px',
         color: '#fff',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        minWidth: '1000px'
+        width: '900px',
+        margin: '0 auto',
+        minHeight: '100vh',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch'
       }}>
         {/* Header */}
         <div style={{ 
           background: 'linear-gradient(135deg, #1a1f2e 0%, #0a0a0a 100%)',
           borderRadius: '8px',
-          padding: '15px',
-          marginBottom: '15px',
-          border: '1px solid #333'
+          padding: '20px',
+          marginBottom: '16px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <Shield size={20} color="#FFD700" />
-            <span style={{ color: '#FFD700', fontSize: '11px', fontWeight: '600' }}>FCBJ DATA</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <img src="/beitar-logo.png" alt="Beitar Logo" style={{ width: '18px', height: '18px' }} />
+            <span style={{ color: '#FFD700', fontSize: '12px', fontWeight: '600' }}>FCBJ DATA</span>
           </div>
           
           <h1 style={{ 
             color: '#FFD700', 
-            fontSize: '20px', 
+            fontSize: '18px', 
             fontWeight: '700',
-            marginBottom: '15px' 
+            marginBottom: '8px' 
           }}>
             Matchday {matchdayNumber} Report
           </h1>
 
           {/* Press Metrics Section */}
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
               ⚡ Press Metrics & Scoring
             </div>
             
-            <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #333' }}>
-                  <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '40px' }}>RANK</th>
-                  <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '120px' }}>TEAM</th>
-                  <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>PPDA40<br/>SCORE</th>
-                  <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>AVG TIME (s)<br/>P POS</th>
-                  <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>xG (15TH<br/>perc p5)</th>
-                  <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>PPDA40</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PRESS<br/>SCORE</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>חילוצי<br/>כדור</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>זמן<br/>יריבה</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PPDA40</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedTeams.map((team, index) => {
+                {teamsWithPressScores.map((team, index) => {
                   const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                  const ppda40Score = 100 - (index * 100 / sortedTeams.length)
                   
                   return (
                     <tr key={team.teamId} style={{ 
                       borderBottom: '1px solid #222',
                       background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                     }}>
-                      <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff' }}>{index + 1}</td>
-                      <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
+                      <td style={{ 
+                        padding: '8px 12px', 
+                        color: isBeitar ? '#FFD700' : '#fff',
+                        fontWeight: '600'
+                      }}>
+                        {index + 1}
+                      </td>
+                      <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
                         {team.Team}
                       </td>
                       <td style={{ 
-                        padding: '6px 4px', 
+                        padding: '8px 12px', 
                         textAlign: 'center'
                       }}>
-                        <span style={{
-                          color: getProgressBarColor(team, 'ppda40'),
-                          fontWeight: '600'
-                        }}>●●●</span> {ppda40Score.toFixed(0)}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                        {parseFloat(team.AvgSeqTime || 0).toFixed(1)}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                        {parseFloat(team.xG || 0).toFixed(2)}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: '6px',
+                          justifyContent: 'center'
+                        }}>
+                          <div style={{
+                            width: '50px',
+                            height: '12px',
+                            background: '#222',
+                            borderRadius: '6px',
+                            overflow: 'hidden',
+                            position: 'relative'
+                          }}>
+                            <div style={{
+                              width: `${team.pressScore}%`,
+                              height: '100%',
+                              background: getScoreColor(team.pressScore),
+                              borderRadius: '6px'
+                            }} />
+                          </div>
+                          <span style={{ 
+                            color: getScoreColor(team.pressScore),
+                            fontSize: '9px',
+                            fontWeight: '600'
+                          }}>
+                            {team.pressScore.toFixed(0)}
+                          </span>
+                        </div>
                       </td>
                       <td style={{ 
-                        padding: '6px 4px', 
+                        padding: '8px 12px', 
                         textAlign: 'center',
-                        color: getProgressBarColor(team, 'ppda40'),
+                        color: getScoreColor(team.posWonScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(team.ppda40 || 0).toFixed(2)}
+                        {team.poswonopponenthalf || 0} ({team.posWonScore.toFixed(0)})
+                      </td>
+                      <td style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'center',
+                        color: getScoreColor(team.avgSeqScore),
+                        fontWeight: '600'
+                      }}>
+                        {parseFloat(team.AvgSeqTime || 0).toFixed(1)}s ({team.avgSeqScore.toFixed(0)})
+                      </td>
+                      <td style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'center',
+                        color: getScoreColor(team.ppda40Score),
+                        fontWeight: '600'
+                      }}>
+                        {parseFloat(team.ppda40 || 0).toFixed(2)} ({team.ppda40Score.toFixed(0)})
                       </td>
                     </tr>
                   )
@@ -197,62 +511,95 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
         <div style={{ 
           background: '#111',
           borderRadius: '8px',
-          padding: '15px',
-          marginBottom: '15px',
-          border: '1px solid #333'
+          padding: '20px',
+          marginBottom: '16px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
             ⚔️ Duels
           </h3>
           
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333' }}>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '40px' }}>RANK</th>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '120px' }}>TEAM</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>DUELS<br/>SCORE</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>AERIAL %</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>GROUND %</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '25%' }}>DUELS SCORE</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '18%' }}>GROUND % (70%)</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '19%' }}>AERIAL % (30%)</th>
               </tr>
             </thead>
             <tbody>
-              {sortedTeams.map((team, index) => {
+              {teamsWithDuelsScores.map((team, index) => {
                 const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                const aerialPerc = parseFloat(team['Aerial%'] || 0)
-                const groundPerc = parseFloat(team['ground%'] || 0)
-                const duelsScore = ((aerialPerc + groundPerc) / 2).toFixed(1)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
                     background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff' }}>{index + 1}</td>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      color: isBeitar ? '#FFD700' : '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
                       {team.Team}
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center'
                     }}>
-                      <span style={{
-                        color: parseFloat(duelsScore) > 50 ? '#22c55e' : parseFloat(duelsScore) > 45 ? '#f59e0b' : '#ef4444',
-                        fontWeight: '600'
-                      }}>●●●</span> {duelsScore}
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '6px',
+                        justifyContent: 'center'
+                      }}>
+                        <div style={{
+                          width: '40px',
+                          height: '12px',
+                          background: '#222',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}>
+                          <div style={{
+                            width: `${team.duelsScore}%`,
+                            height: '100%',
+                            background: getScoreColor(team.duelsScore),
+                            borderRadius: '6px'
+                          }} />
+                        </div>
+                        <span style={{ 
+                          color: getScoreColor(team.duelsScore),
+                          fontSize: '9px',
+                          fontWeight: '600'
+                        }}>
+                          {team.duelsScore.toFixed(0)}
+                        </span>
+                      </div>
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center',
-                      color: aerialPerc > 50 ? '#22c55e' : '#fff'
+                      color: getScoreColor(team.groundScore),
+                      fontWeight: '600'
                     }}>
-                      {formatPercentage(team['Aerial%'])}
+                      {formatPercentage(team['ground%'])} ({team.groundScore.toFixed(0)})
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center',
-                      color: groundPerc > 50 ? '#22c55e' : '#fff'
+                      color: getScoreColor(team.aerialScore),
+                      fontWeight: '600'
                     }}>
-                      {formatPercentage(team['ground%'])}
+                      {formatPercentage(team['Aerial%'])} ({team.aerialScore.toFixed(0)})
                     </td>
                   </tr>
                 )
@@ -265,27 +612,30 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
         <div style={{ 
           background: '#111',
           borderRadius: '8px',
-          padding: '15px',
-          marginBottom: '15px',
-          border: '1px solid #333'
+          padding: '20px',
+          marginBottom: '16px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
             🎯 Assist Zone
           </h3>
           
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333' }}>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '40px' }}>RANK</th>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '120px' }}>TEAM</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>ASSIST ZONE<br/>SCORE</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>ASSIST FROM<br/>PASSES</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>SHOT FROM<br/>GOLDEN ⚡</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>A2PASS/CROSS</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '22%' }}>ASSIST ZONE SCORE</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '16%' }}>ASSIST FROM<br/>PASSES (40%)</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '15%' }}>SHOT FROM<br/>GOLDEN (20%)</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '15%' }}>A2PASS/CROSS<br/>(40%)</th>
               </tr>
             </thead>
             <tbody>
-              {sortedTeams.map((team, index) => {
+              {teamsWithAssistZoneScores.map((team, index) => {
                 const isBeitar = team.Team?.toLowerCase().includes('beitar')
                 
                 return (
@@ -293,31 +643,73 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                     borderBottom: '1px solid #222',
                     background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff' }}>{index + 1}</td>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      color: isBeitar ? '#FFD700' : '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
                       {team.Team}
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center'
                     }}>
-                      <span style={{
-                        color: getProgressBarColor(team, 'passAssistZone'),
-                        fontWeight: '600'
-                      }}>●●●</span> {team.passAssistZone || 0}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {team.passfromassisttogolden || 0}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {team.shotfromgolden || 0}
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '6px',
+                        justifyContent: 'center'
+                      }}>
+                        <div style={{
+                          width: '40px',
+                          height: '12px',
+                          background: '#222',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}>
+                          <div style={{
+                            width: `${team.assistZoneScore}%`,
+                            height: '100%',
+                            background: getScoreColor(team.assistZoneScore),
+                            borderRadius: '6px'
+                          }} />
+                        </div>
+                        <span style={{ 
+                          color: getScoreColor(team.assistZoneScore),
+                          fontSize: '9px',
+                          fontWeight: '600'
+                        }}>
+                          {team.assistZoneScore.toFixed(0)}
+                        </span>
+                      </div>
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center',
-                      color: '#22c55e'
+                      color: getScoreColor(team.passAssistScore),
+                      fontWeight: '600'
                     }}>
-                      {formatPercentage((team.CrossOpen || 0) / (team.passAssistZone || 1) * 100)}
+                      {team.passfromassisttogolden || 0} ({team.passAssistScore.toFixed(0)})
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: getScoreColor(team.shotFromGoldenScore),
+                      fontWeight: '600'
+                    }}>
+                      {team.shotfromgolden || 0} ({team.shotFromGoldenScore.toFixed(0)})
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: getScoreColor(team.crossPassRatioScore),
+                      fontWeight: '600'
+                    }}>
+                      {team.crossPassRatio.toFixed(2)} ({team.crossPassRatioScore.toFixed(0)})
                     </td>
                   </tr>
                 )
@@ -330,27 +722,30 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
         <div style={{ 
           background: '#111',
           borderRadius: '8px',
-          padding: '15px',
-          marginBottom: '15px',
-          border: '1px solid #333'
+          padding: '20px',
+          marginBottom: '16px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
             📍 Shot Locations
           </h3>
           
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333' }}>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '40px' }}>RANK</th>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '120px' }}>TEAM</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>PP/P5</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>16M/P6</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>17M/P6</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>LOCATION<br/>%</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '24%' }}>LOCATION SCORE</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '13%' }}>SHOTS</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '13%' }}>SHOTS FROM<br/>BOX</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '14%' }}>SHOTS FROM<br/>GOLDEN</th>
               </tr>
             </thead>
             <tbody>
-              {sortedTeams.map((team, index) => {
+              {teamsWithShotLocationScores.map((team, index) => {
                 const isBeitar = team.Team?.toLowerCase().includes('beitar')
                 
                 return (
@@ -358,25 +753,73 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                     borderBottom: '1px solid #222',
                     background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff' }}>{index + 1}</td>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      color: isBeitar ? '#FFD700' : '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
                       {team.Team}
                     </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {team.SOG_from_penalty_area || 0}
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '6px',
+                        justifyContent: 'center'
+                      }}>
+                        <div style={{
+                          width: '40px',
+                          height: '12px',
+                          background: '#222',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}>
+                          <div style={{
+                            width: `${team.locationScore}%`,
+                            height: '100%',
+                            background: getScoreColor(team.locationScore),
+                            borderRadius: '6px'
+                          }} />
+                        </div>
+                        <span style={{ 
+                          color: getScoreColor(team.locationScore),
+                          fontSize: '9px',
+                          fontWeight: '600'
+                        }}>
+                          {team.shotFromGoldenPercent.toFixed(1)}%
+                        </span>
+                      </div>
                     </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {team.SOG_from_box || 0}
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {team.ShtIncBl || 0}
                     </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
                       {team.shotfrombox || 0}
                     </td>
                     <td style={{ 
-                      padding: '6px 4px', 
+                      padding: '6px 8px', 
                       textAlign: 'center',
-                      color: '#22c55e'
+                      color: '#fff',
+                      fontWeight: '600'
                     }}>
-                      {formatPercentage(((team.SOG_from_penalty_area || 0) / (team.SOG || 1)) * 100)}
+                      {team.shotfromgolden || 0}
                     </td>
                   </tr>
                 )
@@ -389,60 +832,113 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
         <div style={{ 
           background: '#111',
           borderRadius: '8px',
-          padding: '15px',
-          marginBottom: '15px',
-          border: '1px solid #333'
+          padding: '20px',
+          marginBottom: '16px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '11px', color: '#888', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
             🎯 Shot Quality
           </h3>
           
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #333' }}>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '40px' }}>RANK</th>
-                <th style={{ padding: '6px 4px', textAlign: 'left', color: '#888', width: '120px' }}>TEAM</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>PP/P5</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>P1SEO</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>12M*6</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>17M1</th>
-                <th style={{ padding: '6px 4px', textAlign: 'center', color: '#888' }}>QUALITY<br/>%</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '22%' }}>QUALITY SCORE</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '11%' }}>SHOTS</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '12%' }}>SHOTS ON<br/>TARGET</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '11%' }}>SHOTS FROM<br/>BOX</th>
+                <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', width: '11%' }}>SHOTS FROM<br/>GOLDEN</th>
               </tr>
             </thead>
             <tbody>
-              {sortedTeams.map((team, index) => {
+              {teamsWithShotQualityScores.map((team, index) => {
                 const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                const sog = team.SOG || 1
-                const qualityPerc = ((team.SOG_from_penalty_area || 0) / sog * 100)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
                     background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff' }}>{index + 1}</td>
-                    <td style={{ padding: '6px 4px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                      {team.Team}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {team.ShtIncBl || 0}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {formatPercentage(team['ExpG/Shot'] * 100)}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {formatPercentage((team.SOG_from_box / sog) * 100)}
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', color: '#fff' }}>
-                      {formatPercentage((team.shotfrombox / (team.ShtIncBl || 1)) * 100)}
-                    </td>
                     <td style={{ 
-                      padding: '6px 4px', 
-                      textAlign: 'center',
-                      color: qualityPerc > 50 ? '#22c55e' : qualityPerc > 30 ? '#f59e0b' : '#ef4444',
+                      padding: '6px 8px', 
+                      color: isBeitar ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
-                      {formatPercentage(qualityPerc)}
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
+                      {team.Team}
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '6px',
+                        justifyContent: 'center'
+                      }}>
+                        <div style={{
+                          width: '40px',
+                          height: '12px',
+                          background: '#222',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}>
+                          <div style={{
+                            width: `${team.qualityScore}%`,
+                            height: '100%',
+                            background: getScoreColor(team.qualityScore),
+                            borderRadius: '6px'
+                          }} />
+                        </div>
+                        <span style={{ 
+                          color: getScoreColor(team.qualityScore),
+                          fontSize: '9px',
+                          fontWeight: '600'
+                        }}>
+                          {team.qualityPercent.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {team.ShtIncBl || 0}
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {team.SOG || 0}
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {team.SOG_from_box || 0}
+                    </td>
+                    <td style={{ 
+                      padding: '6px 8px', 
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: '600'
+                    }}>
+                      {team.SOG_from_penalty_area || 0}
                     </td>
                   </tr>
                 )
@@ -455,166 +951,185 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
         <div style={{ 
           background: '#111',
           borderRadius: '8px',
-          padding: '15px',
-          border: '1px solid #333'
+          padding: '10px',
+          border: '1px solid #333',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '11px', color: '#FFD700', marginBottom: '10px' }}>
+          <h3 style={{ fontSize: '12px', color: '#FFD700', marginBottom: '6px', textAlign: 'center' }}>
             ➡️ Field Progression Analysis
           </h3>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             {/* A1 → A2 THIRD */}
-            <div>
-              <h4 style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>A1 → A2 THIRD</h4>
-              <table style={{ width: '100%', fontSize: '9px', borderCollapse: 'collapse' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '8px', textAlign: 'center' }}>A1 → A2 THIRD</h4>
+              <div style={{ fontSize: '8px', color: '#666', marginBottom: '8px', textAlign: 'center' }}>DEFENSIVE THIRD</div>
+              <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
                 <tbody>
-                  {sortedTeams.map((team) => {
-                    const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                    const value = team['Starta1enda2/'] || 0
-                    const maxValue = Math.max(...sortedTeams.map(t => t['Starta1enda2/'] || 0))
-                    const percentage = (value / maxValue) * 100
-                    
-                    return (
-                      <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
-                        <td style={{ 
-                          padding: '4px', 
-                          color: isBeitar ? '#FFD700' : '#fff',
-                          fontWeight: isBeitar ? '600' : '400',
-                          fontSize: '9px',
-                          width: '80px'
-                        }}>
-                          {team.Team}
-                        </td>
-                        <td style={{ padding: '4px', width: '100px' }}>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            gap: '4px'
+                  {(() => {
+                    // Calculate A1→A2 percentages and sort
+                    const teamsWithA1A2 = sortedTeams.map(team => {
+                      const numerator = (parseFloat(team['Starta1enda2/']) || 0) + 
+                                      (parseFloat(team['Starta1enda3/']) || 0)
+                      const denominator = parseFloat(team.SeqStartA1) || 1
+                      const percentage = (numerator / denominator) * 100
+                      return { ...team, a1a2Percentage: percentage }
+                    }).sort((a, b) => b.a1a2Percentage - a.a1a2Percentage)
+
+                    return teamsWithA1A2.map((team, index) => {
+                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      
+                      return (
+                        <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '20px'
                           }}>
-                            <div style={{
-                              width: '60px',
-                              height: '8px',
-                              background: '#222',
-                              borderRadius: '4px',
-                              overflow: 'hidden'
-                            }}>
-                              <div style={{
-                                width: `${percentage}%`,
-                                height: '100%',
-                                background: isBeitar ? '#FFD700' : '#22c55e',
-                                borderRadius: '4px'
-                              }} />
-                            </div>
-                            <span style={{ fontSize: '8px', color: '#fff' }}>{value}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                            {index + 1}.
+                          </td>
+                          <td style={{ 
+                            padding: '4px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '80px'
+                          }}>
+                            {team.Team}
+                          </td>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            textAlign: 'right',
+                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            fontWeight: '600',
+                            fontSize: '12px'
+                          }}>
+                            {team.a1a2Percentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
 
             {/* A2 → A3 THIRD */}
-            <div>
-              <h4 style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>A2 → A3 THIRD</h4>
-              <table style={{ width: '100%', fontSize: '9px', borderCollapse: 'collapse' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '8px', textAlign: 'center' }}>A2 → A3 THIRD</h4>
+              <div style={{ fontSize: '8px', color: '#666', marginBottom: '8px', textAlign: 'center' }}>MIDDLE THIRD</div>
+              <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
                 <tbody>
-                  {sortedTeams.map((team) => {
-                    const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                    const value = team['Starta2enda3/'] || team.starta2enda3 || 0
-                    const maxValue = Math.max(...sortedTeams.map(t => t['Starta2enda3/'] || t.starta2enda3 || 0))
-                    const percentage = (value / maxValue) * 100
-                    
-                    return (
-                      <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
-                        <td style={{ 
-                          padding: '4px', 
-                          color: isBeitar ? '#FFD700' : '#fff',
-                          fontWeight: isBeitar ? '600' : '400',
-                          fontSize: '9px',
-                          width: '80px'
-                        }}>
-                          {team.Team}
-                        </td>
-                        <td style={{ padding: '4px', width: '100px' }}>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            gap: '4px'
+                  {(() => {
+                    // Calculate A2→A3 percentages and sort
+                    const teamsWithA2A3 = sortedTeams.map(team => {
+                      const numerator = (parseFloat(team['Starta1enda3/']) || 0) + 
+                                      (parseFloat(team['Starta2enda3/']) || 0)
+                      const denominator = (parseFloat(team.SeqStartMid3rd) || 0) + 
+                                        (parseFloat(team['Starta1enda2/']) || 0)
+                      const percentage = denominator > 0 ? (numerator / denominator) * 100 : 0
+                      return { ...team, a2a3Percentage: percentage }
+                    }).sort((a, b) => b.a2a3Percentage - a.a2a3Percentage)
+
+                    return teamsWithA2A3.map((team, index) => {
+                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      
+                      return (
+                        <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '20px'
                           }}>
-                            <div style={{
-                              width: '60px',
-                              height: '8px',
-                              background: '#222',
-                              borderRadius: '4px',
-                              overflow: 'hidden'
-                            }}>
-                              <div style={{
-                                width: `${percentage}%`,
-                                height: '100%',
-                                background: isBeitar ? '#FFD700' : '#3b82f6',
-                                borderRadius: '4px'
-                              }} />
-                            </div>
-                            <span style={{ fontSize: '8px', color: '#fff' }}>{value}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                            {index + 1}.
+                          </td>
+                          <td style={{ 
+                            padding: '4px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '80px'
+                          }}>
+                            {team.Team}
+                          </td>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            textAlign: 'right',
+                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            fontWeight: '600',
+                            fontSize: '12px'
+                          }}>
+                            {team.a2a3Percentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
 
             {/* A3 → BOX */}
-            <div>
-              <h4 style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>A3 → BOX</h4>
-              <table style={{ width: '100%', fontSize: '9px', borderCollapse: 'collapse' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '8px', textAlign: 'center' }}>A3 → BOX</h4>
+              <div style={{ fontSize: '8px', color: '#666', marginBottom: '8px', textAlign: 'center' }}>ATTACKING THIRD</div>
+              <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
                 <tbody>
-                  {sortedTeams.map((team) => {
-                    const isBeitar = team.Team?.toLowerCase().includes('beitar')
-                    const value = team['Starta3endbox /'] || 0
-                    const maxValue = Math.max(...sortedTeams.map(t => t['Starta3endbox /'] || 0))
-                    const percentage = (value / maxValue) * 100
-                    
-                    return (
-                      <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
-                        <td style={{ 
-                          padding: '4px', 
-                          color: isBeitar ? '#FFD700' : '#fff',
-                          fontWeight: isBeitar ? '600' : '400',
-                          fontSize: '9px',
-                          width: '80px'
-                        }}>
-                          {team.Team}
-                        </td>
-                        <td style={{ padding: '4px', width: '100px' }}>
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            gap: '4px'
+                  {(() => {
+                    // Calculate A3→BOX percentages and sort
+                    const teamsWithA3Box = sortedTeams.map(team => {
+                      const numerator = (parseFloat(team['Starta1endbox/']) || 0) + 
+                                      (parseFloat(team['Starta2endbox/']) || 0) + 
+                                      (parseFloat(team['Starta3endbox /']) || 0)
+                      const denominator = (parseFloat(team.SeqStartAtt3rd) || 0) + 
+                                        (parseFloat(team['Starta1enda3/']) || 0) + 
+                                        (parseFloat(team['Starta2enda3/']) || 0)
+                      const percentage = denominator > 0 ? (numerator / denominator) * 100 : 0
+                      return { ...team, a3BoxPercentage: percentage }
+                    }).sort((a, b) => b.a3BoxPercentage - a.a3BoxPercentage)
+
+                    return teamsWithA3Box.map((team, index) => {
+                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      
+                      return (
+                        <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '20px'
                           }}>
-                            <div style={{
-                              width: '60px',
-                              height: '8px',
-                              background: '#222',
-                              borderRadius: '4px',
-                              overflow: 'hidden'
-                            }}>
-                              <div style={{
-                                width: `${percentage}%`,
-                                height: '100%',
-                                background: isBeitar ? '#FFD700' : '#ef4444',
-                                borderRadius: '4px'
-                              }} />
-                            </div>
-                            <span style={{ fontSize: '8px', color: '#fff' }}>{value}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                            {index + 1}.
+                          </td>
+                          <td style={{ 
+                            padding: '4px', 
+                            color: isBeitar ? '#FFD700' : '#fff',
+                            fontWeight: isBeitar ? '600' : '400',
+                            fontSize: '9px',
+                            width: '80px'
+                          }}>
+                            {team.Team}
+                          </td>
+                          <td style={{ 
+                            padding: '4px 8px', 
+                            textAlign: 'right',
+                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            fontWeight: '600',
+                            fontSize: '12px'
+                          }}>
+                            {team.a3BoxPercentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
