@@ -26,7 +26,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
       console.log('Starting WhatsApp-optimized export...')
       
       // Export with WhatsApp optimization
-      const result = await exportElementForWhatsApp(reportElement, {
+      const result: any = await exportElementForWhatsApp(reportElement, {
         backgroundColor: '#0b0b0f',
         filename: `Matchday_${matchdayNumber}_Report`,
         dualFormat: true,
@@ -36,7 +36,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
       })
       
       // Validate PNG for WhatsApp
-      const pngValidation = await validateImageForWhatsApp(result.png)
+      const pngValidation: any = await validateImageForWhatsApp(result.png)
       console.log('PNG validation:', pngValidation)
       
       // Download primary format (PNG)

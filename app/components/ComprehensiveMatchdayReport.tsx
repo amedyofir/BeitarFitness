@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useRef } from 'react'
-import { Download } from 'lucide-react'
+import React, { useRef, useState } from 'react'
+import { Download, Save, Loader2, Calendar } from 'lucide-react'
 import html2canvas from 'html2canvas'
+import { CSVReportService } from '../../lib/csvReportService'
 
 interface PlayerRunningData {
   Player: string
@@ -39,6 +40,9 @@ interface ComprehensiveMatchdayReportProps {
 
 export default function ComprehensiveMatchdayReport({ runningData, matchdayNumber, selectedOpponent }: ComprehensiveMatchdayReportProps) {
   const exportRef = useRef<HTMLDivElement>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string>('')
+  const [matchDate, setMatchDate] = useState<string>(new Date().toISOString().split('T')[0])
 
   const handleDownloadPNG = async () => {
     if (!exportRef.current) return
@@ -63,6 +67,48 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
     }
   }
 
+  const handleSaveReport = async () => {
+    if (!runningData || runningData.length === 0) {
+      setSaveMessage('No data to save')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+
+    setIsSaving(true)
+    setSaveMessage('')
+    
+    try {
+      // Convert running data back to CSV format
+      const csvContent = convertToCsvFormat(runningData)
+      
+      const result = await CSVReportService.saveCSVReport({
+        matchday_number: matchdayNumber,
+        opponent_team: selectedOpponent,
+        match_date: matchDate, // Use the selected date
+        season: '2024-2025',
+        uploaded_by: 'System', // You can modify this to use actual user
+        filename: `matchday-${matchdayNumber}-vs-${selectedOpponent}.csv`,
+        original_filename: `Running${matchdayNumber} (${selectedOpponent}).csv`,
+        csv_content: csvContent,
+        notes: `Running report for Matchday ${matchdayNumber} vs ${selectedOpponent}`
+      })
+
+      if (result.success) {
+        setSaveMessage('✅ Report saved successfully!')
+        setTimeout(() => setSaveMessage(''), 5000)
+      } else {
+        setSaveMessage(`❌ Error: ${result.error}`)
+        setTimeout(() => setSaveMessage(''), 5000)
+      }
+    } catch (error: any) {
+      console.error('Error saving report:', error)
+      setSaveMessage(`❌ Failed to save: ${error.message}`)
+      setTimeout(() => setSaveMessage(''), 5000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (!runningData || runningData.length === 0 || !selectedOpponent) {
     return null
   }
@@ -80,6 +126,39 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
   const formatIntensity = (intensity: number) => {
     return `${intensity.toFixed(1)}%`
+  }
+
+  // Convert running data back to CSV format
+  const convertToCsvFormat = (data: PlayerRunningData[]): string => {
+    if (!data || data.length === 0) return ''
+    
+    // Get all unique keys from all objects to create comprehensive headers
+    const allKeys = new Set<string>()
+    data.forEach(row => {
+      Object.keys(row).forEach(key => allKeys.add(key))
+    })
+    
+    // Convert to array and sort for consistent column order
+    const headers = Array.from(allKeys).sort()
+    
+    // Create CSV content
+    const csvLines = []
+    
+    // Add header row
+    csvLines.push(headers.map(header => `"${header}"`).join(','))
+    
+    // Add data rows
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header]
+        if (value === null || value === undefined) return '""'
+        if (typeof value === 'string') return `"${value.replace(/"/g, '""')}"`
+        return `"${value}"`
+      })
+      csvLines.push(values.join(','))
+    })
+    
+    return csvLines.join('\n')
   }
 
   // Team data processing
@@ -454,12 +533,70 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Download Button */}
+      {/* Match Date and Action Buttons */}
       <div style={{ 
         display: 'flex', 
-        justifyContent: 'flex-end', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: '16px' 
       }}>
+        {/* Match Date Input */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <Calendar size={16} style={{ color: '#FFD700' }} />
+          <label style={{
+            color: '#FFD700',
+            fontSize: '14px',
+            fontWeight: '600'
+          }}>
+            Match Date:
+          </label>
+          <input
+            type="date"
+            value={matchDate}
+            onChange={(e) => setMatchDate(e.target.value)}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid #444',
+              borderRadius: '6px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#fff',
+              fontSize: '14px',
+              fontFamily: 'system-ui, -apple-system, sans-serif'
+            }}
+          />
+        </div>
+        
+        {/* Action Buttons */}
+        <div style={{ 
+          display: 'flex',
+          gap: '12px'
+        }}>
+        <button 
+          onClick={handleSaveReport}
+          disabled={isSaving}
+          style={{
+            backgroundColor: isSaving ? '#666' : '#22c55e',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            cursor: isSaving ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '16px',
+            fontWeight: '600',
+            opacity: isSaving ? 0.7 : 1
+          }}
+        >
+          {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {isSaving ? 'Saving...' : 'Save Report'}
+        </button>
+        
         <button 
           onClick={handleDownloadPNG}
           style={{
@@ -479,7 +616,24 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
           <Download size={16} />
           Download PNG
         </button>
+        </div>
       </div>
+      
+      {/* Save Message */}
+      {saveMessage && (
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '16px',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          backgroundColor: saveMessage.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          color: saveMessage.includes('✅') ? '#22c55e' : '#ef4444',
+          fontSize: '14px',
+          fontWeight: '500'
+        }}>
+          {saveMessage}
+        </div>
+      )}
 
       <div ref={exportRef} id="comprehensive-matchday-report" style={{ 
         background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',

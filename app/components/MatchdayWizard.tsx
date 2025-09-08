@@ -73,7 +73,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
             setIsProcessing(false)
             setCurrentStep(3)
           },
-          error: (error) => {
+          error: (error: any) => {
             console.error('Error parsing CSV:', error)
             alert('Error parsing CSV file. Please check the file format.')
             setIsProcessing(false)

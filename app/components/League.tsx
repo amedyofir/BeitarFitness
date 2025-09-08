@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useState } from 'react'
-import { FileText, Calendar, Trophy, BarChart3, Upload } from 'lucide-react'
+import { FileText, Calendar, Trophy, BarChart3, Upload, Archive, Database } from 'lucide-react'
 import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
+import SimpleCSVReportsManager from './SimpleCSVReportsManager'
+import RunningReportDashboard from './RunningReportDashboard'
 
 export default function League() {
-  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'standings' | 'fixtures' | 'statistics'>('matchday-reports')
+  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'saved-reports' | 'standings' | 'fixtures' | 'statistics'>('matchday-reports')
   const [runningData, setRunningData] = useState<any[]>([])
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [selectedOpponent, setSelectedOpponent] = useState('')
@@ -96,7 +98,14 @@ export default function League() {
           className={`tab-button ${activeTab === 'matchday-reports' ? 'active' : ''}`}
         >
           <FileText />
-          Matchday Reports
+          Running Report
+        </button>
+        <button
+          onClick={() => setActiveTab('running-dashboard')}
+          className={`tab-button ${activeTab === 'running-dashboard' ? 'active' : ''}`}
+        >
+          <Database />
+          Saved Reports
         </button>
         <button
           onClick={() => setActiveTab('standings')}
@@ -270,6 +279,10 @@ export default function League() {
               </div>
             )}
           </>
+        )}
+
+        {activeTab === 'running-dashboard' && (
+          <RunningReportDashboard />
         )}
         
         {activeTab === 'standings' && (

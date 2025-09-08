@@ -181,7 +181,7 @@ export default function IntensityView() {
       const error = null
 
       if (error) {
-        setError(`Error fetching data: ${error.message}`)
+        setError(`Error fetching data: ${(error as any).message}`)
         return
       }
 
