@@ -293,6 +293,423 @@ export class CSVReportService {
   }
 
   /**
+   * Get aggregated team averages across all matches for a season
+   */
+  static async getTeamAveragesBySeason(season: string = '2024-2025'): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const result = await this.getAllReports()
+      
+      if (!result.success || !result.data) {
+        return { success: false, error: 'Failed to load reports' }
+      }
+
+      // Filter reports by season
+      const seasonReports = result.data.filter(report => report.season === season)
+      
+      if (seasonReports.length === 0) {
+        return { success: false, error: `No reports found for season ${season}` }
+      }
+
+      // Load and aggregate all CSV data for the season
+      const allMatchData: any[] = []
+      
+      for (const report of seasonReports) {
+        const reportResult = await this.loadCSVReport(report.matchday_number, report.opponent_team)
+        if (reportResult.success && reportResult.data) {
+          const convertedData = this.convertToRunningReportFormat(reportResult.data.parsed_data)
+          
+          // Add match metadata to each player record
+          convertedData.forEach(player => {
+            player.matchday_number = report.matchday_number
+            player.opponent_team = report.opponent_team
+            player.match_date = report.match_date
+          })
+          
+          allMatchData.push(...convertedData)
+        }
+      }
+
+      if (allMatchData.length === 0) {
+        return { success: false, error: 'No valid match data found' }
+      }
+
+      // Aggregate by team and player
+      const aggregatedData = this.aggregatePlayerDataAcrossMatches(allMatchData)
+      
+      return { 
+        success: true, 
+        data: {
+          season,
+          totalMatches: seasonReports.length,
+          totalPlayers: allMatchData.length,
+          aggregatedData,
+          matchesList: seasonReports.map(r => ({
+            matchday: r.matchday_number,
+            opponent: r.opponent_team,
+            date: r.match_date
+          }))
+        }
+      }
+
+    } catch (error: any) {
+      console.error('Error getting team averages:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  /**
+   * Aggregate player data across multiple matches - TEAM TOTALS FIRST
+   */
+  private static aggregatePlayerDataAcrossMatches(allMatchData: any[]): any[] {
+    // First, organize data by match and team
+    const matchTeamData: { [key: string]: any } = {}
+    
+    allMatchData.forEach(player => {
+      const teamName = player.teamName || player.newestTeam || 'Unknown'
+      const matchKey = `${player.matchday_number}_${player.opponent_team}`
+      const teamMatchKey = `${matchKey}_${teamName}`
+      
+      // Skip goalkeepers and non-playing players
+      if (player.Position?.toLowerCase().includes('goalkeeper') || 
+          player.pos?.toLowerCase().includes('goalkeeper')) return
+      
+      const playingTime = player.MinIncET || player.Min || 0
+      if (playingTime <= 0) return
+      
+      if (!matchTeamData[teamMatchKey]) {
+        matchTeamData[teamMatchKey] = {
+          matchday: player.matchday_number,
+          opponent: player.opponent_team,
+          date: player.match_date,
+          teamName: teamName,
+          
+          // Team totals for this match
+          totalDistance: 0,
+          totalFirstHalf: 0,
+          totalSecondHalf: 0,
+          totalInPoss: 0,
+          totalOutPoss: 0,
+          totalFirstHalfHSR: 0,
+          totalFirstHalfSprint: 0,
+          totalSecondHalfHSR: 0,
+          totalSecondHalfSprint: 0,
+          totalInPossHSR: 0,
+          totalOutPossHSR: 0,
+          totalInPossSprint: 0,
+          totalOutPossSprint: 0,
+          totalMinutes: 0,
+          totalMinutesET: 0,
+          maxSpeed: 0,
+          totalSpeed: 0,
+          speedCount: 0,
+          
+          players: []
+        }
+      }
+      
+      const teamMatch = matchTeamData[teamMatchKey]
+      
+      // Add player's stats to team totals for this match
+      teamMatch.totalDistance += (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
+      teamMatch.totalFirstHalf += (player.DistanceRunFirstHalf || 0)
+      teamMatch.totalSecondHalf += (player.DistanceRunScndHalf || 0)
+      teamMatch.totalInPoss += (player.DistanceRunInPoss || 0)
+      teamMatch.totalOutPoss += (player.DistanceRunOutPoss || 0)
+      teamMatch.totalFirstHalfHSR += (player.FirstHalfDistHSRun || 0)
+      teamMatch.totalFirstHalfSprint += (player.FirstHalfDistSprint || 0)
+      teamMatch.totalSecondHalfHSR += (player.ScndHalfDistHSRun || 0)
+      teamMatch.totalSecondHalfSprint += (player.ScndHalfDistSprint || 0)
+      teamMatch.totalInPossHSR += (player.InPossDistHSRun || 0)
+      teamMatch.totalOutPossHSR += (player.OutPossDistHSRun || 0)
+      teamMatch.totalInPossSprint += (player.InPossDistSprint || 0)
+      teamMatch.totalOutPossSprint += (player.OutPossDistSprint || 0)
+      teamMatch.totalMinutes += (player.Min || 0)
+      teamMatch.totalMinutesET += (player.MinIncET || 0)
+      
+      const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
+      if (!isNaN(speed) && speed > 0) {
+        teamMatch.totalSpeed += speed
+        teamMatch.speedCount++
+      }
+      teamMatch.maxSpeed = Math.max(teamMatch.maxSpeed, player.TopSpeed || speed || 0)
+      
+      teamMatch.players.push(player)
+    })
+    
+    // Now aggregate team totals across matches - FILTER OUT INVALID DATA
+    const teamAverages: { [teamName: string]: any } = {}
+    
+    Object.values(matchTeamData).forEach(teamMatch => {
+      const teamName = teamMatch.teamName
+      
+      // VALIDATION: Skip matches where team total distance is less than 10,000m (data error)
+      if (teamMatch.totalDistance < 10000) {
+        console.warn(`⚠️ Excluding invalid match data for ${teamName}: only ${teamMatch.totalDistance}m total distance (match ${teamMatch.matchday} vs ${teamMatch.opponent})`)
+        return
+      }
+      
+      if (!teamAverages[teamName]) {
+        teamAverages[teamName] = {
+          teamName: teamName,
+          matchCount: 0,
+          
+          // Accumulate team totals across matches
+          sumDistance: 0,
+          sumFirstHalf: 0,
+          sumSecondHalf: 0,
+          sumInPoss: 0,
+          sumOutPoss: 0,
+          sumFirstHalfHSR: 0,
+          sumFirstHalfSprint: 0,
+          sumSecondHalfHSR: 0,
+          sumSecondHalfSprint: 0,
+          sumInPossHSR: 0,
+          sumOutPossHSR: 0,
+          sumInPossSprint: 0,
+          sumOutPossSprint: 0,
+          sumMinutes: 0,
+          sumMinutesET: 0,
+          maxTopSpeed: 0,
+          sumAvgSpeed: 0,
+          
+          // NEW: Store team-level intensity calculations per match
+          sumInPossIntensity: 0,
+          sumOutPossIntensity: 0,
+          
+          // NEW: Half split aggregations per match
+          sumFirstHalfIntensity: 0,
+          sumSecondHalfIntensity: 0,
+          
+          allPlayers: new Set(),
+          matches: []
+        }
+      }
+      
+      const team = teamAverages[teamName]
+      team.matchCount++
+      
+      // Add this match's team totals to the sum
+      team.sumDistance += teamMatch.totalDistance
+      team.sumFirstHalf += teamMatch.totalFirstHalf
+      team.sumSecondHalf += teamMatch.totalSecondHalf
+      team.sumInPoss += teamMatch.totalInPoss
+      team.sumOutPoss += teamMatch.totalOutPoss
+      team.sumFirstHalfHSR += teamMatch.totalFirstHalfHSR
+      team.sumFirstHalfSprint += teamMatch.totalFirstHalfSprint
+      team.sumSecondHalfHSR += teamMatch.totalSecondHalfHSR
+      team.sumSecondHalfSprint += teamMatch.totalSecondHalfSprint
+      team.sumInPossHSR += teamMatch.totalInPossHSR
+      team.sumOutPossHSR += teamMatch.totalOutPossHSR
+      team.sumInPossSprint += teamMatch.totalInPossSprint
+      team.sumOutPossSprint += teamMatch.totalOutPossSprint
+      team.sumMinutes += teamMatch.totalMinutes
+      team.sumMinutesET += teamMatch.totalMinutesET
+      team.maxTopSpeed = Math.max(team.maxTopSpeed, teamMatch.maxSpeed)
+      team.sumAvgSpeed += (teamMatch.speedCount > 0 ? teamMatch.totalSpeed / teamMatch.speedCount : 0)
+      
+      // FIXED: Calculate team intensity PER MATCH, then sum for averaging
+      const matchInPossIntensity = teamMatch.totalInPoss > 0 ? 
+        ((teamMatch.totalInPossHSR + teamMatch.totalInPossSprint) / teamMatch.totalInPoss * 100) : 0
+      const matchOutPossIntensity = teamMatch.totalOutPoss > 0 ? 
+        ((teamMatch.totalOutPossHSR + teamMatch.totalOutPossSprint) / teamMatch.totalOutPoss * 100) : 0
+      
+      team.sumInPossIntensity += matchInPossIntensity
+      team.sumOutPossIntensity += matchOutPossIntensity
+      
+      // NEW: Calculate half split intensities PER MATCH
+      const matchFirstHalfIntensity = teamMatch.totalFirstHalf > 0 ? 
+        ((teamMatch.totalFirstHalfHSR + teamMatch.totalFirstHalfSprint) / teamMatch.totalFirstHalf * 100) : 0
+      const matchSecondHalfIntensity = teamMatch.totalSecondHalf > 0 ? 
+        ((teamMatch.totalSecondHalfHSR + teamMatch.totalSecondHalfSprint) / teamMatch.totalSecondHalf * 100) : 0
+        
+      team.sumFirstHalfIntensity += matchFirstHalfIntensity
+      team.sumSecondHalfIntensity += matchSecondHalfIntensity
+      
+      // Track all unique players
+      teamMatch.players.forEach((p: any) => team.allPlayers.add(p.Player))
+      
+      team.matches.push({
+        matchday: teamMatch.matchday,
+        opponent: teamMatch.opponent,
+        date: teamMatch.date,
+        totalDistance: teamMatch.totalDistance,
+        playerCount: teamMatch.players.length
+      })
+    })
+    
+    // Convert team averages to player-like format for compatibility with report
+    const result: any[] = []
+    
+    Object.values(teamAverages).forEach(team => {
+      const matchCount = team.matchCount || 1
+      
+      // Create a synthetic "team average" entry
+      result.push({
+        Player: `${team.teamName} Team Average`,
+        playerFullName: `${team.teamName} - Season Average`,
+        Position: 'TEAM',
+        teamName: team.teamName,
+        newestTeam: team.teamName,
+        matchesPlayed: matchCount,
+        
+        // These are now TEAM AVERAGES across matches
+        Min: team.sumMinutes / matchCount,
+        MinIncET: team.sumMinutesET / matchCount,
+        DistanceRunFirstHalf: team.sumFirstHalf / matchCount,
+        DistanceRunScndHalf: team.sumSecondHalf / matchCount,
+        FirstHalfDistSprint: team.sumFirstHalfSprint / matchCount,
+        ScndHalfDistSprint: team.sumSecondHalfSprint / matchCount,
+        FirstHalfDistHSRun: team.sumFirstHalfHSR / matchCount,
+        ScndHalfDistHSRun: team.sumSecondHalfHSR / matchCount,
+        InPossDistSprint: team.sumInPossSprint / matchCount,
+        OutPossDistSprint: team.sumOutPossSprint / matchCount,
+        InPossDistHSRun: team.sumInPossHSR / matchCount,
+        OutPossDistHSRun: team.sumOutPossHSR / matchCount,
+        DistanceRunInPoss: team.sumInPoss / matchCount,
+        DistanceRunOutPoss: team.sumOutPoss / matchCount,
+        
+        // FIXED: Add properly calculated team intensities
+        avgInPossIntensity: team.sumInPossIntensity / matchCount,
+        avgOutPossIntensity: team.sumOutPossIntensity / matchCount,
+        
+        // NEW: Add half split intensities
+        avgFirstHalfIntensity: team.sumFirstHalfIntensity / matchCount,
+        avgSecondHalfIntensity: team.sumSecondHalfIntensity / matchCount,
+        
+        // DEBUG DATA for troubleshooting
+        _debug_matchCount: matchCount,
+        _debug_sumInPoss: team.sumInPoss,
+        _debug_sumOutPoss: team.sumOutPoss,
+        _debug_sumInPossHSR: team.sumInPossHSR,
+        _debug_sumInPossSprint: team.sumInPossSprint,
+        _debug_sumOutPossHSR: team.sumOutPossHSR,
+        _debug_sumOutPossSprint: team.sumOutPossSprint,
+        _debug_sumInPossIntensity: team.sumInPossIntensity,
+        _debug_sumOutPossIntensity: team.sumOutPossIntensity,
+        
+        TopSpeed: team.maxTopSpeed,
+        KMHSPEED: team.sumAvgSpeed / matchCount,
+        
+        // Metadata
+        totalMatches: matchCount,
+        avgPlayingTime: team.sumMinutesET / matchCount,
+        totalDistance: team.sumDistance / matchCount,
+        uniquePlayers: team.allPlayers.size,
+        
+        GS: 1,
+        pos: 'TEAM'
+      })
+      
+      // Also add individual player averages for detail view
+      const playerStats: { [key: string]: any } = {}
+      
+      // Collect all player data across matches for this team
+      Object.values(matchTeamData).forEach(teamMatch => {
+        if (teamMatch.teamName === team.teamName) {
+          teamMatch.players.forEach((player: any) => {
+            const playerKey = player.Player
+            
+            if (!playerStats[playerKey]) {
+              playerStats[playerKey] = {
+                Player: player.Player,
+                playerFullName: player.playerFullName,
+                Position: player.Position,
+                teamName: player.teamName || player.newestTeam,
+                newestTeam: player.newestTeam,
+                matchesPlayed: 0,
+                
+                totalMin: 0,
+                totalMinIncET: 0,
+                totalDistanceRunFirstHalf: 0,
+                totalDistanceRunScndHalf: 0,
+                totalFirstHalfDistSprint: 0,
+                totalScndHalfDistSprint: 0,
+                totalFirstHalfDistHSRun: 0,
+                totalScndHalfDistHSRun: 0,
+                totalInPossDistSprint: 0,
+                totalOutPossDistSprint: 0,
+                totalInPossDistHSRun: 0,
+                totalOutPossDistHSRun: 0,
+                totalDistanceRunInPoss: 0,
+                totalDistanceRunOutPoss: 0,
+                maxTopSpeed: 0,
+                totalKMHSPEED: 0,
+                validSpeedReadings: 0
+              }
+            }
+            
+            const stats = playerStats[playerKey]
+            stats.matchesPlayed++
+            
+            stats.totalMin += (player.Min || 0)
+            stats.totalMinIncET += (player.MinIncET || 0)
+            stats.totalDistanceRunFirstHalf += (player.DistanceRunFirstHalf || 0)
+            stats.totalDistanceRunScndHalf += (player.DistanceRunScndHalf || 0)
+            stats.totalFirstHalfDistSprint += (player.FirstHalfDistSprint || 0)
+            stats.totalScndHalfDistSprint += (player.ScndHalfDistSprint || 0)
+            stats.totalFirstHalfDistHSRun += (player.FirstHalfDistHSRun || 0)
+            stats.totalScndHalfDistHSRun += (player.ScndHalfDistHSRun || 0)
+            stats.totalInPossDistSprint += (player.InPossDistSprint || 0)
+            stats.totalOutPossDistSprint += (player.OutPossDistSprint || 0)
+            stats.totalInPossDistHSRun += (player.InPossDistHSRun || 0)
+            stats.totalOutPossDistHSRun += (player.OutPossDistHSRun || 0)
+            stats.totalDistanceRunInPoss += (player.DistanceRunInPoss || 0)
+            stats.totalDistanceRunOutPoss += (player.DistanceRunOutPoss || 0)
+            
+            const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
+            if (!isNaN(speed) && speed > 0) {
+              stats.totalKMHSPEED += speed
+              stats.validSpeedReadings++
+            }
+            stats.maxTopSpeed = Math.max(stats.maxTopSpeed, player.TopSpeed || speed || 0)
+          })
+        }
+      })
+      
+      // Add individual player averages
+      Object.values(playerStats).forEach((stats: any) => {
+        const matchesPlayed = stats.matchesPlayed || 1
+        
+        result.push({
+          Player: stats.Player,
+          playerFullName: stats.playerFullName,
+          Position: stats.Position,
+          teamName: stats.teamName,
+          newestTeam: stats.newestTeam,
+          matchesPlayed: stats.matchesPlayed,
+          
+          Min: stats.totalMin / matchesPlayed,
+          MinIncET: stats.totalMinIncET / matchesPlayed,
+          DistanceRunFirstHalf: stats.totalDistanceRunFirstHalf / matchesPlayed,
+          DistanceRunScndHalf: stats.totalDistanceRunScndHalf / matchesPlayed,
+          FirstHalfDistSprint: stats.totalFirstHalfDistSprint / matchesPlayed,
+          ScndHalfDistSprint: stats.totalScndHalfDistSprint / matchesPlayed,
+          FirstHalfDistHSRun: stats.totalFirstHalfDistHSRun / matchesPlayed,
+          ScndHalfDistHSRun: stats.totalScndHalfDistHSRun / matchesPlayed,
+          InPossDistSprint: stats.totalInPossDistSprint / matchesPlayed,
+          OutPossDistSprint: stats.totalOutPossDistSprint / matchesPlayed,
+          InPossDistHSRun: stats.totalInPossDistHSRun / matchesPlayed,
+          OutPossDistHSRun: stats.totalOutPossDistHSRun / matchesPlayed,
+          DistanceRunInPoss: stats.totalDistanceRunInPoss / matchesPlayed,
+          DistanceRunOutPoss: stats.totalDistanceRunOutPoss / matchesPlayed,
+          
+          TopSpeed: stats.maxTopSpeed,
+          KMHSPEED: stats.validSpeedReadings > 0 ? (stats.totalKMHSPEED / stats.validSpeedReadings) : 0,
+          
+          totalMatches: stats.matchesPlayed,
+          avgPlayingTime: stats.totalMinIncET / matchesPlayed,
+          totalDistance: (stats.totalDistanceRunFirstHalf + stats.totalDistanceRunScndHalf) / matchesPlayed,
+          
+          GS: 1,
+          pos: stats.Position
+        })
+      })
+    })
+    
+    return result
+  }
+
+  /**
    * Get unique seasons list
    */
   static async getSeasonsList(): Promise<{ success: boolean; data?: string[]; error?: string }> {

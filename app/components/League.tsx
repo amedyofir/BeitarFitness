@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useState } from 'react'
-import { FileText, Calendar, Trophy, BarChart3, Upload, Archive, Database } from 'lucide-react'
+import { FileText, Calendar, Trophy, BarChart3, Upload, Archive, Database, TrendingUp } from 'lucide-react'
 import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
 import SimpleCSVReportsManager from './SimpleCSVReportsManager'
 import RunningReportDashboard from './RunningReportDashboard'
+import TeamAverageReport from './TeamAverageReport'
 
 export default function League() {
-  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'saved-reports' | 'standings' | 'fixtures' | 'statistics'>('matchday-reports')
+  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'team-average'>('matchday-reports')
   const [runningData, setRunningData] = useState<any[]>([])
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [selectedOpponent, setSelectedOpponent] = useState('')
@@ -108,25 +109,11 @@ export default function League() {
           Saved Reports
         </button>
         <button
-          onClick={() => setActiveTab('standings')}
-          className={`tab-button ${activeTab === 'standings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('team-average')}
+          className={`tab-button ${activeTab === 'team-average' ? 'active' : ''}`}
         >
-          <Trophy />
-          League Table
-        </button>
-        <button
-          onClick={() => setActiveTab('fixtures')}
-          className={`tab-button ${activeTab === 'fixtures' ? 'active' : ''}`}
-        >
-          <Calendar />
-          Fixtures
-        </button>
-        <button
-          onClick={() => setActiveTab('statistics')}
-          className={`tab-button ${activeTab === 'statistics' ? 'active' : ''}`}
-        >
-          <BarChart3 />
-          Statistics
+          <TrendingUp />
+          Team Average
         </button>
       </nav>
       
@@ -284,26 +271,9 @@ export default function League() {
         {activeTab === 'running-dashboard' && (
           <RunningReportDashboard />
         )}
-        
-        {activeTab === 'standings' && (
-          <div className="glass-card">
-            <h3>League Table</h3>
-            <p>Coming soon - League standings will be displayed here</p>
-          </div>
-        )}
-        
-        {activeTab === 'fixtures' && (
-          <div className="glass-card">
-            <h3>Fixtures</h3>
-            <p>Coming soon - Upcoming matches and results will be displayed here</p>
-          </div>
-        )}
-        
-        {activeTab === 'statistics' && (
-          <div className="glass-card">
-            <h3>Statistics</h3>
-            <p>Coming soon - League statistics and analytics will be displayed here</p>
-          </div>
+
+        {activeTab === 'team-average' && (
+          <TeamAverageReport />
         )}
       </div>
     </div>
