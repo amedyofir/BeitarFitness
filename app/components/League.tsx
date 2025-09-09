@@ -7,9 +7,10 @@ import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
 import SimpleCSVReportsManager from './SimpleCSVReportsManager'
 import RunningReportDashboard from './RunningReportDashboard'
 import TeamAverageReport from './TeamAverageReport'
+import TopPlayersReport from './TopPlayersReport'
 
 export default function League() {
-  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'team-average'>('matchday-reports')
+  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'team-average' | 'top-players'>('matchday-reports')
   const [runningData, setRunningData] = useState<any[]>([])
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [selectedOpponent, setSelectedOpponent] = useState('')
@@ -114,6 +115,13 @@ export default function League() {
         >
           <TrendingUp />
           Team Average
+        </button>
+        <button
+          onClick={() => setActiveTab('top-players')}
+          className={`tab-button ${activeTab === 'top-players' ? 'active' : ''}`}
+        >
+          <Trophy />
+          Top Players
         </button>
       </nav>
       
@@ -274,6 +282,10 @@ export default function League() {
 
         {activeTab === 'team-average' && (
           <TeamAverageReport />
+        )}
+
+        {activeTab === 'top-players' && (
+          <TopPlayersReport />
         )}
       </div>
     </div>

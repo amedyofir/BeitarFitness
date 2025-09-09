@@ -426,12 +426,21 @@ export class CSVReportService {
       teamMatch.totalMinutes += (player.Min || 0)
       teamMatch.totalMinutesET += (player.MinIncET || 0)
       
-      const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
-      if (!isNaN(speed) && speed > 0) {
-        teamMatch.totalSpeed += speed
+      // Track both TopSpeed and KMHSPEED
+      const topSpeed = typeof player.TopSpeed === 'string' ? parseFloat(player.TopSpeed) : (player.TopSpeed || 0)
+      const kmhSpeed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || 0)
+      
+      // Use the higher of the two for max speed
+      const maxSpeedForPlayer = Math.max(topSpeed, kmhSpeed)
+      
+      if (!isNaN(kmhSpeed) && kmhSpeed > 0) {
+        teamMatch.totalSpeed += kmhSpeed
         teamMatch.speedCount++
       }
-      teamMatch.maxSpeed = Math.max(teamMatch.maxSpeed, player.TopSpeed || speed || 0)
+      
+      if (!isNaN(maxSpeedForPlayer) && maxSpeedForPlayer > 0) {
+        teamMatch.maxSpeed = Math.max(teamMatch.maxSpeed, maxSpeedForPlayer)
+      }
       
       teamMatch.players.push(player)
     })
@@ -656,12 +665,22 @@ export class CSVReportService {
             stats.totalDistanceRunInPoss += (player.DistanceRunInPoss || 0)
             stats.totalDistanceRunOutPoss += (player.DistanceRunOutPoss || 0)
             
-            const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
-            if (!isNaN(speed) && speed > 0) {
-              stats.totalKMHSPEED += speed
+            // Track both TopSpeed and KMHSPEED
+            const topSpeed = typeof player.TopSpeed === 'string' ? parseFloat(player.TopSpeed) : (player.TopSpeed || 0)
+            const kmhSpeed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || 0)
+            
+            // Use the higher of the two for max speed
+            const maxSpeedForMatch = Math.max(topSpeed, kmhSpeed)
+            
+            if (!isNaN(kmhSpeed) && kmhSpeed > 0) {
+              stats.totalKMHSPEED += kmhSpeed
               stats.validSpeedReadings++
             }
-            stats.maxTopSpeed = Math.max(stats.maxTopSpeed, player.TopSpeed || speed || 0)
+            
+            // Track the absolute maximum speed across all matches
+            if (!isNaN(maxSpeedForMatch) && maxSpeedForMatch > 0) {
+              stats.maxTopSpeed = Math.max(stats.maxTopSpeed, maxSpeedForMatch)
+            }
           })
         }
       })
