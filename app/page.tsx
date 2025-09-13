@@ -12,10 +12,11 @@ import PlayersView from './components/PlayersView'
 import CoachDashboard from './components/CoachDashboard'
 import League from './components/League'
 import MatchdayWizard from './components/MatchdayWizard'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText } from 'lucide-react'
+import DietitianDashboard from './components/DietitianDashboard'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale } from 'lucide-react'
 
 export default function Home() {
-  const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'coaches' | 'players' | 'league' | 'matchday-wizard'>('coach-dashboard')
+  const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'coaches' | 'players' | 'league' | 'matchday-wizard' | 'dietitian'>('coach-dashboard')
   const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
 
   return (
@@ -88,6 +89,15 @@ export default function Home() {
             >
               <FileText />
               Matchday Wizard
+            </button>
+            <button
+              onClick={() => {
+                setActiveSection('dietitian')
+              }}
+              className={`section-button ${activeSection === 'dietitian' ? 'active' : ''}`}
+            >
+              <Scale />
+              Dietitian
             </button>
           </nav>
 
@@ -180,6 +190,13 @@ export default function Home() {
           {activeSection === 'matchday-wizard' && (
             <div className="tab-content">
               <MatchdayWizard />
+            </div>
+          )}
+
+          {/* Dietitian Section */}
+          {activeSection === 'dietitian' && (
+            <div className="tab-content">
+              <DietitianDashboard />
             </div>
           )}
         </div>

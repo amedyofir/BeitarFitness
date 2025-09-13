@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isExcludedPlayer } from '../../lib/constants'
 import { Loader2, X } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -343,6 +344,11 @@ export default function BarChartView() {
       const playerSet = new Set<string>()
 
       processedData.forEach(record => {
+        // Skip excluded players
+        if (isExcludedPlayer(record.player_name)) {
+          return
+        }
+        
         if (!playerWeeklyData[record.player_name]) {
           playerWeeklyData[record.player_name] = {}
         }
@@ -386,6 +392,11 @@ export default function BarChartView() {
     const weeklyGroups: { [key: string]: any[] } = {}
     
     data.forEach(record => {
+      // Skip excluded players
+      if (isExcludedPlayer(record.player_name)) {
+        return
+      }
+      
       const date = new Date(record.date)
       const week = generateWeekString(date)
       

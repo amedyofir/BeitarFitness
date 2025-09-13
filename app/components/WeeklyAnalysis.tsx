@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isExcludedPlayer } from '../../lib/constants'
 import { Calendar, TrendingUp, Users, Loader2, Edit2, Save, X } from 'lucide-react'
 
 interface WeeklyData {
@@ -170,9 +171,8 @@ export default function WeeklyAnalysis() {
       const weekTargetsMap: {[week: string]: {target_km: number, target_intensity: number}} = {}
 
       processedData.forEach(record => {
-        // Skip excluded players (including name variations)
-        const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
-        if (excludedPlayers.includes(record.player_name)) {
+        // Skip excluded players
+        if (isExcludedPlayer(record.player_name)) {
           return
         }
         

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isExcludedPlayer } from '../../lib/constants'
 import { Loader2, Save, X, Download } from 'lucide-react'
 import generatePDF from 'react-to-pdf'
 import html2canvas from 'html2canvas'
@@ -160,9 +161,8 @@ export default function DistanceView() {
       const playerSet = new Set<string>()
 
       processedData.forEach(record => {
-        // Skip excluded players (including name variations)
-        const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
-        if (excludedPlayers.includes(record.player_name)) {
+        // Skip excluded players
+        if (isExcludedPlayer(record.player_name)) {
           return
         }
         
@@ -204,9 +204,8 @@ export default function DistanceView() {
     const weeklyGroups: { [key: string]: any[] } = {}
     
     data.forEach(record => {
-      // Skip excluded players (including name variations)
-      const excludedPlayers = ['Zohar Zasno', 'Zohar Zesano', 'Silva Kani', 'Dabush', 'Deri', 'Nehorai Dabush', 'Liel Deri']
-      if (excludedPlayers.includes(record.player_name)) {
+      // Skip excluded players
+      if (isExcludedPlayer(record.player_name)) {
         return
       }
       

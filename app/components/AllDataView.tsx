@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isExcludedPlayer } from '../../lib/constants'
 import { Loader2 } from 'lucide-react'
 
 interface WeeklyData {
@@ -105,6 +106,11 @@ export default function AllDataView() {
       const playerSet = new Set<string>()
 
       processedData.forEach(record => {
+        // Skip excluded players
+        if (isExcludedPlayer(record.player_name)) {
+          return
+        }
+        
         if (!playerWeeklyData[record.player_name]) {
           playerWeeklyData[record.player_name] = {}
         }
