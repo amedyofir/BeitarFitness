@@ -130,14 +130,12 @@ body {
 
 /* Header Section */
 .header {
-  padding: 60px 20px;
+  padding: 40px 20px;
   text-align: center;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
   position: relative;
   overflow: hidden;
-  border-bottom: 2px solid var(--primary-accent);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.2);
 }
 
 .header::before {
@@ -159,15 +157,32 @@ body {
 }
 
 .header h1 {
-  font-size: 3.5rem;
-  font-weight: 700;
-  margin-bottom: 16px;
-  background: linear-gradient(45deg, #ffd700, #ffed4a);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-  animation: textGlow 2s ease-in-out infinite alternate;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 2.2rem;
+  font-weight: 200;
+  letter-spacing: 2px;
+  margin: 0;
+  color: #ffffff;
+  text-transform: uppercase;
+  position: relative;
+  padding-bottom: 20px;
+}
+
+.header h1 span.separator {
+  color: var(--primary-accent);
+  font-weight: 100;
+  margin: 0 10px;
+}
+
+.header h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--primary-accent), transparent);
 }
 
 .header p {
@@ -194,6 +209,9 @@ body {
   padding: 0 20px 60px;
   position: relative;
   z-index: 2;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Glass Card */
@@ -204,8 +222,10 @@ body {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-soft);
   transition: var(--transition-smooth);
-  overflow: hidden;
+  overflow: visible;
   position: relative;
+  height: auto;
+  max-height: none;
 }
 
 .glass-card:hover {
@@ -280,7 +300,10 @@ body {
 /* Tab Content */
 .tab-content {
   padding: 40px;
-  min-height: 600px;
+  min-height: auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Upload Section */
@@ -1234,7 +1257,13 @@ body {
 /* Responsive Design */
 @media (max-width: 768px) {
   .header h1 {
-    font-size: 2.5rem;
+    font-size: 1.5rem;
+    letter-spacing: 1px;
+  }
+  
+  .header h1 span.separator {
+    display: block;
+    margin: 10px 0;
   }
   
   .header p {
@@ -1578,6 +1607,9 @@ input[type="file"] {
 .distance-view-section {
   width: 100%;
   padding: 20px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .pdf-header {
@@ -1598,9 +1630,11 @@ input[type="file"] {
 }
 
 .pdf-header-logo {
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
+  display: block;
+  margin-right: 10px;
 }
 
 .pdf-header-title {
@@ -3079,6 +3113,9 @@ input[type="file"] {
 .intensity-view-section {
   width: 100%;
   padding: 20px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .intensity-grid {
@@ -4733,6 +4770,9 @@ input[type="file"] {
 /* Coach Dashboard Styles */
 .coach-dashboard {
   width: 100%;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .coach-dashboard-header {
@@ -4767,6 +4807,9 @@ input[type="file"] {
 
 .coach-tab-content {
   width: 100%;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Responsive design for coach dashboard */
@@ -6670,4 +6713,251 @@ input[type="file"] {
 
 #full-report-content .team-name {
   font-size: 11px !important;
+}
+
+/* Synchronized Scrolling for Distance and Intensity Views */
+.intensity-synchronized-container,
+.distance-synchronized-container {
+  background: var(--primary-bg);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: visible;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  align-items: start;
+  grid-gap: 0;
+  gap: 0;
+}
+
+/* Fixed Player Names Column */
+.intensity-players-column,
+.distance-players-column {
+  background: var(--primary-bg);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  height: auto;
+  max-height: none;
+}
+
+/* Scrollable Data Area */
+.intensity-data-scroll,
+.distance-data-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-accent) transparent;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.intensity-header-cell,
+.distance-header-cell {
+  background: rgba(255, 215, 0, 0.1);
+  color: #FFD700;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.intensity-player-cell,
+.distance-player-cell {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.intensity-player-cell.average-label,
+.distance-player-cell.average-label {
+  background: rgba(255, 215, 0, 0.05);
+  color: #FFD700;
+  font-weight: 700;
+}
+
+
+.intensity-data-scroll::-webkit-scrollbar,
+.distance-data-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.intensity-data-scroll::-webkit-scrollbar-track,
+.distance-data-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.intensity-data-scroll::-webkit-scrollbar-thumb,
+.distance-data-scroll::-webkit-scrollbar-thumb {
+  background: var(--primary-accent);
+  border-radius: 4px;
+}
+
+/* Headers */
+.intensity-weeks-header,
+.distance-weeks-header {
+  display: flex;
+  min-width: fit-content;
+  background: rgba(255, 215, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0;
+  padding: 0;
+}
+
+.intensity-week-header,
+.distance-week-header {
+  min-width: 120px;
+  max-width: 120px;
+  text-align: center;
+  color: #FFD700;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.intensity-week-header:last-child,
+.distance-week-header:last-child {
+  border-right: none;
+}
+
+.intensity-week-header .week-number,
+.distance-week-header .week-number {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.intensity-week-header .week-dates,
+.distance-week-header .week-dates {
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.8;
+  line-height: 1.2;
+}
+
+/* Data Rows */
+.intensity-data-row,
+.distance-data-row {
+  display: flex;
+  min-width: fit-content;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin: 0;
+  padding: 0;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  align-items: center;
+}
+
+.intensity-data-row.average-row,
+.distance-data-row.average-row {
+  background: rgba(255, 215, 0, 0.05);
+}
+
+/* Data Cells */
+.intensity-data-cell,
+.distance-data-cell {
+  min-width: 120px;
+  max-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  height: 48px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.intensity-data-cell:last-child,
+.distance-data-cell:last-child {
+  border-right: none;
+}
+
+.intensity-data-cell.average-cell,
+.distance-data-cell.average-cell {
+  background: rgba(255, 215, 0, 0.02);
+}
+
+/* Content within cells */
+.intensity-data-cell .cell-content-horizontal,
+.distance-data-cell .cell-content-horizontal {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.intensity-data-cell .intensity-compact,
+.distance-data-cell .distance-compact {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+  min-width: 60px;
+}
+
+/* Missing data styling */
+.intensity-data-cell .missing-week-content,
+.distance-data-cell .missing-week-content {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.intensity-data-cell .missing-week-placeholder,
+.distance-data-cell .missing-week-placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.intensity-data-cell .missing-indicator,
+.distance-data-cell .missing-indicator {
+  opacity: 0.5;
 }

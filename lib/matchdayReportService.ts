@@ -29,7 +29,7 @@ export class MatchdayReportService {
         matchday_number: data.matchday_number,
         opponent_team: data.opponent_team,
         match_date: data.match_date,
-        season: data.season || '2024-2025',
+        season: data.season || '2025-2026',
         created_by: data.created_by,
         total_players: data.player_data.length,
         beitar_players_count: teamStats.beitar.playerCount,

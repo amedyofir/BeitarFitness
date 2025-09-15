@@ -71,29 +71,90 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     }
   }
 
-  // Find Beitar in the data
+  // Find Beitar in the data - check multiple possible field names
   const beitarData = csvData.find(team => 
     team.teamFullName?.toLowerCase().includes('beitar') || 
-    team.Team?.toLowerCase().includes('beitar')
+    team.Team?.toLowerCase().includes('beitar') ||
+    team.team_full_name?.toLowerCase().includes('beitar') ||
+    team.name?.toLowerCase().includes('beitar') ||
+    JSON.stringify(team).toLowerCase().includes('beitar')
   )
+
+  // Helper functions to get field values from either format
+  const getTeamName = (team: any) => team.Team || team.team_full_name || team.teamFullName || 'Unknown'
+  const getTeamRank = (team: any) => team.Rank || team.team_rank || 0
+  const isBeitar = (team: any) => getTeamName(team).toLowerCase().includes('beitar')
+  
+  // Field mapping for both formats
+  const getField = (team: any, field: string) => {
+    const fieldMap: {[key: string]: string[]} = {
+      'ppda40': ['ppda40', 'ppda_40'],
+      'poswonopponenthalf': ['poswonopponenthalf', 'possession_won_opponent_half'],
+      'ground_duels': ['ground_duels', 'ground_duels'],
+      'dribblesuccessful': ['dribblesuccessful', 'dribbles_successful'],
+      'TouchOpBox': ['TouchOpBox', 'touch_opponent_box'],
+      'Touches': ['Touches', 'touches'],
+      'ExpG': ['ExpG', 'expected_goals'],
+      'xA': ['xA', 'expected_assists'],
+      'SOG': ['SOG', 'shots_on_goal'],
+      'ShtIncBl': ['ShtIncBl', 'shots_including_blocked'],
+      'xG': ['xG', 'actual_goals'],
+      'AvgSeqTime': ['AvgSeqTime', 'avg_sequence_time'],
+      'ground%': ['ground%', 'ground_percentage'],
+      'Aerial%': ['Aerial%', 'aerial_percentage'],
+      'passfromassisttogolden': ['passfromassisttogolden', 'pass_from_assist_to_golden'],
+      'shotfromgolden': ['shotfromgolden', 'shot_from_golden'],
+      'CrossOpen': ['CrossOpen', 'cross_open'],
+      'SOG_from_penalty_area': ['SOG_from_penalty_area', 'shots_on_goal_penalty_area'],
+      'SOG_from_box': ['SOG_from_box', 'shots_on_goal_from_box'],
+      'shotfrombox': ['shotfrombox', 'shot_from_box'],
+      'Starta1enda2/': ['Starta1enda2/', 'start_a1_end_a2'],
+      'Starta1enda3/': ['Starta1enda3/', 'start_a1_end_a3'],
+      'SeqStartA1': ['SeqStartA1', 'seq_start_a1'],
+      'Starta2enda3/': ['Starta2enda3/', 'start_a2_end_a3_alt'],
+      'SeqStartMid3rd': ['SeqStartMid3rd', 'seq_start_mid_3rd'],
+      'Starta1endbox/': ['Starta1endbox/', 'start_a1_end_box'],
+      'Starta2endbox/': ['Starta2endbox/', 'start_a2_end_box'],
+      'Starta3endbox /': ['Starta3endbox /', 'start_a3_end_box'],
+      'SeqStartAtt3rd': ['SeqStartAtt3rd', 'seq_start_att_3rd']
+    }
+    
+    const possibleFields = fieldMap[field] || [field]
+    for (const possibleField of possibleFields) {
+      if (team[possibleField] !== undefined && team[possibleField] !== null) {
+        return team[possibleField]
+      }
+    }
+    return 0
+  }
 
   if (!beitarData) {
     return (
       <div style={{ padding: '20px', color: '#fff' }}>
         <p>No Beitar data found for Matchday {matchdayNumber}</p>
+        <div style={{ fontSize: '12px', color: '#888', marginTop: '10px' }}>
+          <p>Available teams:</p>
+          {csvData.slice(0, 5).map((team, i) => (
+            <div key={i}>
+              {team.teamFullName || team.Team || team.team_full_name || 'Unknown team'}
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
 
-  // Sort teams by rank
-  const sortedTeams = [...csvData].sort((a, b) => parseInt(a.Rank) - parseInt(b.Rank))
+  // Sort teams by rank - handle both original CSV format and processed format
+  const sortedTeams = [...csvData].sort((a, b) => {
+    return getTeamRank(a) - getTeamRank(b)
+  })
 
   // Calculate Press Scores (1-100 proportional)
   const calculatePressScores = () => {
     // Get all values for normalization
-    const ppda40Values = sortedTeams.map(t => parseFloat(t.ppda40) || 0)
-    const avgSeqTimeValues = sortedTeams.map(t => parseFloat(t.AvgSeqTime) || 0)
-    const posWonValues = sortedTeams.map(t => parseFloat(t.poswonopponenthalf) || 0)
+    const ppda40Values = sortedTeams.map(t => parseFloat(getField(t, 'ppda40')) || 0)
+    const avgSeqTimeValues = sortedTeams.map(t => parseFloat(getField(t, 'AvgSeqTime')) || 0)
+    const posWonValues = sortedTeams.map(t => parseFloat(getField(t, 'poswonopponenthalf')) || 0)
 
     // Get min/max for normalization
     const ppda40Min = Math.min(...ppda40Values)
@@ -104,9 +165,9 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     const posWonMax = Math.max(...posWonValues)
 
     return sortedTeams.map(team => {
-      const ppda40 = parseFloat(team.ppda40) || 0
-      const avgSeq = parseFloat(team.AvgSeqTime) || 0
-      const posWon = parseFloat(team.poswonopponenthalf) || 0
+      const ppda40 = parseFloat(getField(team, 'ppda40')) || 0
+      const avgSeq = parseFloat(getField(team, 'AvgSeqTime')) || 0
+      const posWon = parseFloat(getField(team, 'poswonopponenthalf')) || 0
 
       // Calculate proportional scores (1-100)
       // For PPDA40 and AvgSeq: lower is better, so invert the scale
@@ -138,8 +199,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   // Calculate Duels Scores (1-100 proportional)
   const calculateDuelsScores = () => {
     // Get all values for normalization
-    const groundValues = sortedTeams.map(t => parseFloat(t['ground%']) || 0)
-    const aerialValues = sortedTeams.map(t => parseFloat(t['Aerial%']) || 0)
+    const groundValues = sortedTeams.map(t => parseFloat(getField(t, 'ground%')) || 0)
+    const aerialValues = sortedTeams.map(t => parseFloat(getField(t, 'Aerial%')) || 0)
 
     // Get min/max for normalization
     const groundMin = Math.min(...groundValues)
@@ -148,8 +209,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     const aerialMax = Math.max(...aerialValues)
 
     return sortedTeams.map(team => {
-      const ground = parseFloat(team['ground%']) || 0
-      const aerial = parseFloat(team['Aerial%']) || 0
+      const ground = parseFloat(getField(team, 'ground%')) || 0
+      const aerial = parseFloat(getField(team, 'Aerial%')) || 0
 
       // Calculate proportional scores (1-100) - higher is better for both
       const groundScore = groundMax > groundMin ? 
@@ -175,11 +236,11 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   // Calculate Assist Zone Scores (1-100 proportional)
   const calculateAssistZoneScores = () => {
     // Get all values for normalization
-    const passAssistValues = sortedTeams.map(t => parseFloat(t.passfromassisttogolden) || 0)
-    const shotFromGoldenValues = sortedTeams.map(t => parseFloat(t.shotfromgolden) || 0)
+    const passAssistValues = sortedTeams.map(t => parseFloat(getField(t, 'passfromassisttogolden')) || 0)
+    const shotFromGoldenValues = sortedTeams.map(t => parseFloat(getField(t, 'shotfromgolden')) || 0)
     const crossPassRatioValues = sortedTeams.map(t => {
-      const crossOpen = parseFloat(t.CrossOpen) || 0
-      const passAssist = parseFloat(t.passfromassisttogolden) || 1
+      const crossOpen = parseFloat(getField(t, 'CrossOpen')) || 0
+      const passAssist = parseFloat(getField(t, 'passfromassisttogolden')) || 1
       return crossOpen / passAssist
     })
 
@@ -192,9 +253,9 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     const crossPassRatioMax = Math.max(...crossPassRatioValues)
 
     return sortedTeams.map(team => {
-      const passAssist = parseFloat(team.passfromassisttogolden) || 0
-      const shotFromGolden = parseFloat(team.shotfromgolden) || 0
-      const crossOpen = parseFloat(team.CrossOpen) || 0
+      const passAssist = parseFloat(getField(team, 'passfromassisttogolden')) || 0
+      const shotFromGolden = parseFloat(getField(team, 'shotfromgolden')) || 0
+      const crossOpen = parseFloat(getField(team, 'CrossOpen')) || 0
       const crossPassRatio = crossOpen / (passAssist || 1)
 
       // Calculate proportional scores (1-100) - higher is better for all
@@ -226,12 +287,12 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   // Calculate Shot Location Scores (1-100 proportional)
   const calculateShotLocationScores = () => {
     // Get all values for normalization
-    const sogPenaltyValues = sortedTeams.map(t => parseFloat(t.SOG_from_penalty_area) || 0)
-    const sogBoxValues = sortedTeams.map(t => parseFloat(t.SOG_from_box) || 0)
-    const shotFromBoxValues = sortedTeams.map(t => parseFloat(t.shotfrombox) || 0)
+    const sogPenaltyValues = sortedTeams.map(t => parseFloat(getField(t, 'SOG_from_penalty_area')) || 0)
+    const sogBoxValues = sortedTeams.map(t => parseFloat(getField(t, 'SOG_from_box')) || 0)
+    const shotFromBoxValues = sortedTeams.map(t => parseFloat(getField(t, 'shotfrombox')) || 0)
     const shotFromGoldenPercentValues = sortedTeams.map(t => {
-      const shotFromGolden = parseFloat(t.shotfromgolden) || 0
-      const totalShots = parseFloat(t.ShtIncBl) || 1
+      const shotFromGolden = parseFloat(getField(t, 'shotfromgolden')) || 0
+      const totalShots = parseFloat(getField(t, 'ShtIncBl')) || 1
       return (shotFromGolden / totalShots) * 100
     })
 
@@ -246,11 +307,11 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     const shotFromGoldenPercentMax = Math.max(...shotFromGoldenPercentValues)
 
     return sortedTeams.map(team => {
-      const sogPenalty = parseFloat(team.SOG_from_penalty_area) || 0
-      const sogBox = parseFloat(team.SOG_from_box) || 0
-      const shotFromBox = parseFloat(team.shotfrombox) || 0
-      const shotFromGolden = parseFloat(team.shotfromgolden) || 0
-      const totalShots = parseFloat(team.ShtIncBl) || 1
+      const sogPenalty = parseFloat(getField(team, 'SOG_from_penalty_area')) || 0
+      const sogBox = parseFloat(getField(team, 'SOG_from_box')) || 0
+      const shotFromBox = parseFloat(getField(team, 'shotfrombox')) || 0
+      const shotFromGolden = parseFloat(getField(team, 'shotfromgolden')) || 0
+      const totalShots = parseFloat(getField(team, 'ShtIncBl')) || 1
       const shotFromGoldenPercent = (shotFromGolden / totalShots) * 100
 
       // Calculate proportional scores (1-100) - higher is better for all
@@ -287,8 +348,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   const calculateShotQualityScores = () => {
     // Get all values for normalization - Quality score is SOG_from_penalty_area / ShtIncBl
     const qualityPercentValues = sortedTeams.map(t => {
-      const sogPenalty = parseFloat(t.SOG_from_penalty_area) || 0
-      const totalShots = parseFloat(t.ShtIncBl) || 1
+      const sogPenalty = parseFloat(getField(t, 'SOG_from_penalty_area')) || 0
+      const totalShots = parseFloat(getField(t, 'ShtIncBl')) || 1
       return (sogPenalty / totalShots) * 100
     })
 
@@ -297,8 +358,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     const qualityPercentMax = Math.max(...qualityPercentValues)
 
     return sortedTeams.map(team => {
-      const sogPenalty = parseFloat(team.SOG_from_penalty_area) || 0
-      const totalShots = parseFloat(team.ShtIncBl) || 1
+      const sogPenalty = parseFloat(getField(team, 'SOG_from_penalty_area')) || 0
+      const totalShots = parseFloat(getField(team, 'ShtIncBl')) || 1
       const qualityPercent = (sogPenalty / totalShots) * 100
 
       // Calculate proportional score (1-100) - higher is better
@@ -392,7 +453,15 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
           overflow: 'auto'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <img src="/beitar-logo.png" alt="Beitar Logo" style={{ width: '18px', height: '18px' }} />
+            <img 
+              src="/beitar-logo.png" 
+              alt="Beitar Logo" 
+              style={{ width: '18px', height: '18px' }}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
             <span style={{ color: '#FFD700', fontSize: '12px', fontWeight: '600' }}>FCBJ DATA</span>
           </div>
           
@@ -402,8 +471,29 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             fontWeight: '700',
             marginBottom: '8px' 
           }}>
-            Matchday {matchdayNumber} Report
+            {matchdayNumber.includes('Season') ? '🏆 Season Summary Report' : `Matchday ${matchdayNumber} Report`}
           </h1>
+          
+          {matchdayNumber.includes('Season') && (
+            <div style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              <p style={{ 
+                color: '#22c55e', 
+                fontSize: '11px', 
+                margin: 0,
+                fontFamily: 'Montserrat',
+                fontWeight: '500'
+              }}>
+                📈 Averaged Statistics Across Multiple Matchdays
+              </p>
+            </div>
+          )}
 
           {/* Press Metrics Section */}
           <div style={{ marginBottom: '6px' }}>
@@ -417,29 +507,29 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                   <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>RANK</th>
                   <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
                   <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PRESS<br/>SCORE</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>חילוצי<br/>כדור</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>זמן<br/>יריבה</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>חילוצי כדור<br/>בחצי היריבה</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>זמן ממוצע על<br/>הכדור יריבה</th>
                   <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PPDA40</th>
                 </tr>
               </thead>
               <tbody>
                 {teamsWithPressScores.map((team, index) => {
-                  const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                  const isBeitarTeam = isBeitar(team)
                   
                   return (
                     <tr key={team.teamId} style={{ 
                       borderBottom: '1px solid #222',
-                      background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                      background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                     }}>
                       <td style={{ 
                         padding: '8px 12px', 
-                        color: isBeitar ? '#FFD700' : '#fff',
+                        color: isBeitarTeam ? '#FFD700' : '#fff',
                         fontWeight: '600'
                       }}>
                         {index + 1}
                       </td>
-                      <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                        {team.Team}
+                      <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                        {getTeamName(team)}
                       </td>
                       <td style={{ 
                         padding: '8px 12px', 
@@ -481,7 +571,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                         color: getScoreColor(team.posWonScore),
                         fontWeight: '600'
                       }}>
-                        {team.poswonopponenthalf || 0} ({team.posWonScore.toFixed(0)})
+                        {getField(team, 'poswonopponenthalf') || 0} ({team.posWonScore.toFixed(0)})
                       </td>
                       <td style={{ 
                         padding: '8px 12px', 
@@ -489,7 +579,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                         color: getScoreColor(team.avgSeqScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(team.AvgSeqTime || 0).toFixed(1)}s ({team.avgSeqScore.toFixed(0)})
+                        {parseFloat(getField(team, 'AvgSeqTime') || 0).toFixed(1)}s ({team.avgSeqScore.toFixed(0)})
                       </td>
                       <td style={{ 
                         padding: '8px 12px', 
@@ -497,7 +587,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                         color: getScoreColor(team.ppda40Score),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(team.ppda40 || 0).toFixed(2)} ({team.ppda40Score.toFixed(0)})
+                        {parseFloat(getField(team, 'ppda40') || 0).toFixed(2)} ({team.ppda40Score.toFixed(0)})
                       </td>
                     </tr>
                   )
@@ -534,22 +624,22 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithDuelsScores.map((team, index) => {
-                const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                const isBeitarTeam = isBeitar(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitar ? '#FFD700' : '#fff',
+                      color: isBeitarTeam ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                      {team.Team}
+                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                      {getTeamName(team)}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -591,7 +681,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: getScoreColor(team.groundScore),
                       fontWeight: '600'
                     }}>
-                      {formatPercentage(team['ground%'])} ({team.groundScore.toFixed(0)})
+                      {formatPercentage(getField(team, 'ground%'))} ({team.groundScore.toFixed(0)})
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -599,7 +689,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: getScoreColor(team.aerialScore),
                       fontWeight: '600'
                     }}>
-                      {formatPercentage(team['Aerial%'])} ({team.aerialScore.toFixed(0)})
+                      {formatPercentage(getField(team, 'Aerial%'))} ({team.aerialScore.toFixed(0)})
                     </td>
                   </tr>
                 )
@@ -636,22 +726,22 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithAssistZoneScores.map((team, index) => {
-                const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                const isBeitarTeam = isBeitar(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitar ? '#FFD700' : '#fff',
+                      color: isBeitarTeam ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                      {team.Team}
+                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                      {getTeamName(team)}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -693,7 +783,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: getScoreColor(team.passAssistScore),
                       fontWeight: '600'
                     }}>
-                      {team.passfromassisttogolden || 0} ({team.passAssistScore.toFixed(0)})
+                      {getField(team, 'passfromassisttogolden') || 0} ({team.passAssistScore.toFixed(0)})
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -701,7 +791,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: getScoreColor(team.shotFromGoldenScore),
                       fontWeight: '600'
                     }}>
-                      {team.shotfromgolden || 0} ({team.shotFromGoldenScore.toFixed(0)})
+                      {getField(team, 'shotfromgolden') || 0} ({team.shotFromGoldenScore.toFixed(0)})
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -746,22 +836,22 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithShotLocationScores.map((team, index) => {
-                const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                const isBeitarTeam = isBeitar(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitar ? '#FFD700' : '#fff',
+                      color: isBeitarTeam ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                      {team.Team}
+                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                      {getTeamName(team)}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -803,7 +893,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.ShtIncBl || 0}
+                      {getField(team, 'ShtIncBl') || 0}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -811,7 +901,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.shotfrombox || 0}
+                      {getField(team, 'shotfrombox') || 0}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -819,7 +909,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.shotfromgolden || 0}
+                      {getField(team, 'shotfromgolden') || 0}
                     </td>
                   </tr>
                 )
@@ -857,22 +947,22 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithShotQualityScores.map((team, index) => {
-                const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                const isBeitarTeam = isBeitar(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitar ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitar ? '#FFD700' : '#fff',
+                      color: isBeitarTeam ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitar ? '#FFD700' : '#fff', fontWeight: isBeitar ? '600' : '400' }}>
-                      {team.Team}
+                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                      {getTeamName(team)}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -914,7 +1004,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.ShtIncBl || 0}
+                      {getField(team, 'ShtIncBl') || 0}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -922,7 +1012,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.SOG || 0}
+                      {getField(team, 'SOG') || 0}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -930,7 +1020,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.SOG_from_box || 0}
+                      {getField(team, 'SOG_from_box') || 0}
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -938,7 +1028,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                       color: '#fff',
                       fontWeight: '600'
                     }}>
-                      {team.SOG_from_penalty_area || 0}
+                      {getField(team, 'SOG_from_penalty_area') || 0}
                     </td>
                   </tr>
                 )
@@ -971,22 +1061,22 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                   {(() => {
                     // Calculate A1→A2 percentages and sort
                     const teamsWithA1A2 = sortedTeams.map(team => {
-                      const numerator = (parseFloat(team['Starta1enda2/']) || 0) + 
-                                      (parseFloat(team['Starta1enda3/']) || 0)
-                      const denominator = parseFloat(team.SeqStartA1) || 1
+                      const numerator = (parseFloat(getField(team, 'Starta1enda2/')) || 0) + 
+                                      (parseFloat(getField(team, 'Starta1enda3/')) || 0)
+                      const denominator = parseFloat(getField(team, 'SeqStartA1')) || 1
                       const percentage = (numerator / denominator) * 100
                       return { ...team, a1a2Percentage: percentage }
                     }).sort((a, b) => b.a1a2Percentage - a.a1a2Percentage)
 
                     return teamsWithA1A2.map((team, index) => {
-                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      const isBeitarTeam = isBeitar(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -994,17 +1084,17 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
-                            {team.Team}
+                            {getTeamName(team)}
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>
@@ -1027,23 +1117,23 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                   {(() => {
                     // Calculate A2→A3 percentages and sort
                     const teamsWithA2A3 = sortedTeams.map(team => {
-                      const numerator = (parseFloat(team['Starta1enda3/']) || 0) + 
-                                      (parseFloat(team['Starta2enda3/']) || 0)
-                      const denominator = (parseFloat(team.SeqStartMid3rd) || 0) + 
-                                        (parseFloat(team['Starta1enda2/']) || 0)
+                      const numerator = (parseFloat(getField(team, 'Starta1enda3/')) || 0) + 
+                                      (parseFloat(getField(team, 'Starta2enda3/')) || 0)
+                      const denominator = (parseFloat(getField(team, 'SeqStartMid3rd')) || 0) + 
+                                        (parseFloat(getField(team, 'Starta1enda2/')) || 0)
                       const percentage = denominator > 0 ? (numerator / denominator) * 100 : 0
                       return { ...team, a2a3Percentage: percentage }
                     }).sort((a, b) => b.a2a3Percentage - a.a2a3Percentage)
 
                     return teamsWithA2A3.map((team, index) => {
-                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      const isBeitarTeam = isBeitar(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -1051,17 +1141,17 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
-                            {team.Team}
+                            {getTeamName(team)}
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>
@@ -1084,25 +1174,25 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                   {(() => {
                     // Calculate A3→BOX percentages and sort
                     const teamsWithA3Box = sortedTeams.map(team => {
-                      const numerator = (parseFloat(team['Starta1endbox/']) || 0) + 
-                                      (parseFloat(team['Starta2endbox/']) || 0) + 
-                                      (parseFloat(team['Starta3endbox /']) || 0)
-                      const denominator = (parseFloat(team.SeqStartAtt3rd) || 0) + 
-                                        (parseFloat(team['Starta1enda3/']) || 0) + 
-                                        (parseFloat(team['Starta2enda3/']) || 0)
+                      const numerator = (parseFloat(getField(team, 'Starta1endbox/')) || 0) + 
+                                      (parseFloat(getField(team, 'Starta2endbox/')) || 0) + 
+                                      (parseFloat(getField(team, 'Starta3endbox /')) || 0)
+                      const denominator = (parseFloat(getField(team, 'SeqStartAtt3rd')) || 0) + 
+                                        (parseFloat(getField(team, 'Starta1enda3/')) || 0) + 
+                                        (parseFloat(getField(team, 'Starta2enda3/')) || 0)
                       const percentage = denominator > 0 ? (numerator / denominator) * 100 : 0
                       return { ...team, a3BoxPercentage: percentage }
                     }).sort((a, b) => b.a3BoxPercentage - a.a3BoxPercentage)
 
                     return teamsWithA3Box.map((team, index) => {
-                      const isBeitar = team.Team?.toLowerCase().includes('beitar')
+                      const isBeitarTeam = isBeitar(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -1110,17 +1200,17 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitar ? '#FFD700' : '#fff',
-                            fontWeight: isBeitar ? '600' : '400',
+                            color: isBeitarTeam ? '#FFD700' : '#fff',
+                            fontWeight: isBeitarTeam ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
-                            {team.Team}
+                            {getTeamName(team)}
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitar ? '#FFD700' : '#fbbf24',
+                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>

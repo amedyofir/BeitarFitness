@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS csv_reports (
   matchday_number VARCHAR(10) NOT NULL,
   opponent_team VARCHAR(100) NOT NULL,
   match_date DATE,
-  season VARCHAR(20) DEFAULT '2024-2025',
+  season VARCHAR(20) DEFAULT '2025-2026',
   
   -- File information
   filename VARCHAR(255),

@@ -28,7 +28,7 @@ export class RawMatchdayReportService {
         matchday_number: data.matchday_number,
         opponent_team: data.opponent_team,
         match_date: data.match_date,
-        season: data.season || '2024-2025',
+        season: data.season || '2025-2026',
         uploaded_by: data.uploaded_by,
         total_records: data.player_data.length,
         csv_filename: data.csv_filename,

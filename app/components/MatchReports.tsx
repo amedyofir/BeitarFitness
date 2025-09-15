@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
-import { Trophy, Calendar, Users, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { Trophy, Calendar, Users, ChevronLeft, ChevronRight, Download, Database } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { fetchMatchMetadata, fetchMatchGpsData } from '@/lib/matchGpsService'
+import type { MatchGpsData, MatchMetadata } from '@/lib/matchGpsService'
 
 // Formation position definitions (updated for 2x height pitch)
 const FORMATION_POSITIONS: {[key: string]: {[key: string]: {x: number, y: number, label: string}}} = {
@@ -86,6 +88,14 @@ interface MatchWithData extends MatchInfo {
   player_data: CatapultMatchData[]
 }
 
+interface NewMatchWithData {
+  metadata: MatchMetadata
+  player_data: MatchGpsData[]
+  source: 'new'
+}
+
+type UnifiedMatchData = (MatchWithData & { source: 'legacy' }) | NewMatchWithData
+
 interface PositionBenchmark {
   distance: number // meters per 100 minutes
   highSpeed: number // meters per 100 minutes
@@ -139,10 +149,11 @@ const POSITION_BENCHMARKS: { [key: string]: PositionBenchmark } = {
 
 export default function MatchReports() {
   console.log('🔥 MATCH REPORTS COMPONENT LOADED - YOU SHOULD SEE THIS!')
-  const [matches, setMatches] = useState<MatchWithData[]>([])
+  const [matches, setMatches] = useState<UnifiedMatchData[]>([])
   const [currentMatchIndex, setCurrentMatchIndex] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const [dataSource, setDataSource] = useState<'all' | 'legacy' | 'new'>('all')
   
   // Manual highlighting state
   // Format: { matchId: { playerId: { columnName: 'good' | 'bad' | null } } }
@@ -155,7 +166,7 @@ export default function MatchReports() {
 
   useEffect(() => {
     fetchMatches()
-  }, [])
+  }, [dataSource])
 
   // Navigation functions
   const goToPreviousMatch = () => {
@@ -189,59 +200,74 @@ export default function MatchReports() {
   const fetchMatches = async () => {
     try {
       setLoading(true)
+      const allMatches: UnifiedMatchData[] = []
       
-      // Fetch all matches with their player data
-      const { data: matchesData, error: matchesError } = await supabase
-        .from('match_info')
-        .select('*')
-        .order('match_date', { ascending: false })
-        .order('created_at', { ascending: false })
+      // Fetch legacy matches (existing data)
+      if (dataSource === 'all' || dataSource === 'legacy') {
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('match_info')
+          .select('*')
+          .order('match_date', { ascending: false })
+          .order('created_at', { ascending: false })
 
-      if (matchesError) throw matchesError
+        if (matchesError) throw matchesError
 
-      const matchesWithData: MatchWithData[] = []
+        for (const match of matchesData || []) {
+          const { data: playerData, error: playerError } = await supabase
+            .from('catapult_match_data')
+            .select(`
+              *,
+              squad_players (
+                first_name,
+                last_name,
+                profile_picture_url,
+                full_name
+              )
+            `)
+            .eq('match_id', match.match_id)
+            .order('player_name')
 
-      for (const match of matchesData || []) {
-        const { data: playerData, error: playerError } = await supabase
-          .from('catapult_match_data')
-          .select(`
-            *,
-            squad_players (
-              first_name,
-              last_name,
-              profile_picture_url,
-              full_name
-            )
-          `)
-          .eq('match_id', match.match_id)
-          .order('player_name')
+          if (playerError) throw playerError
 
-        if (playerError) throw playerError
-
-        // Debug logging
-        console.log('=== MATCH REPORTS DEBUG ===')
-        console.log('Match player data:', playerData)
-        playerData?.forEach(player => {
-          console.log(`Player: ${player.player_name}, ID: ${player.player_id}`)
-          console.log(`  Squad data:`, player.squad_players)
-          console.log(`  Profile pic: ${player.squad_players?.profile_picture_url || 'No profile URL'}`)
-        })
-        
-        // Check how many players have profile pictures in this match
-        const playersWithPics = playerData?.filter(p => p.squad_players?.profile_picture_url).length || 0
-        console.log(`Match players with profile pictures: ${playersWithPics}/${playerData?.length || 0}`)
-        console.log('=== END MATCH REPORTS DEBUG ===')
-
-        matchesWithData.push({
-          ...match,
-          player_data: playerData || []
-        })
+          allMatches.push({
+            ...match,
+            player_data: playerData || [],
+            source: 'legacy'
+          })
+        }
       }
+      
+      // Fetch new GPS data matches
+      if (dataSource === 'all' || dataSource === 'new') {
+        try {
+          const gpsMetadata = await fetchMatchMetadata()
+          
+          for (const metadata of gpsMetadata) {
+            const gpsData = await fetchMatchGpsData(metadata.matchweek, metadata.season)
+            
+            allMatches.push({
+              metadata,
+              player_data: gpsData,
+              source: 'new'
+            })
+          }
+        } catch (gpsError) {
+          console.error('Error fetching GPS data:', gpsError)
+          // Don't throw - just log and continue with legacy data
+        }
+      }
+      
+      // Sort all matches by date (newest first)
+      allMatches.sort((a, b) => {
+        const dateA = a.source === 'legacy' ? a.match_date : a.metadata.match_date
+        const dateB = b.source === 'legacy' ? b.match_date : b.metadata.match_date
+        return new Date(dateB).getTime() - new Date(dateA).getTime()
+      })
 
-      setMatches(matchesWithData)
+      setMatches(allMatches)
       
       // Set current match to the most recent one
-      if (matchesWithData.length > 0) {
+      if (allMatches.length > 0) {
         setCurrentMatchIndex(0)
       }
     } catch (err) {
@@ -327,7 +353,7 @@ export default function MatchReports() {
     }
   }
 
-  const getSelectedMatchData = (): MatchWithData | null => {
+  const getSelectedMatchData = (): UnifiedMatchData | null => {
     return matches[currentMatchIndex] || null
   }
 
@@ -611,25 +637,22 @@ export default function MatchReports() {
 
   return (
     <div className="match-reports">
-      <div className="reports-header">
-        <div className="header-content">
-          <div className="header-text">
-            <h3>Match Reports</h3>
-            <p>Analyze team and individual player performance</p>
-          </div>
-          {selectedMatchData && (
+      {selectedMatchData && (
+        <div className="reports-header">
+          <div className="header-content">
             <button 
               className="pdf-export-btn"
               onClick={generatePDF}
               disabled={generatingPdf}
+              style={{ marginLeft: 'auto' }}
             >
               <Download size={20} />
               {generatingPdf ? 'Generating PDF...' : 'Export PDF'}
             </button>
-          )}
+          </div>
         </div>
-      </div>
-
+      )}
+      
       {matches.length === 0 ? (
         <div className="no-matches">
           <Trophy size={48} />
@@ -647,8 +670,24 @@ export default function MatchReports() {
                     {currentMatchIndex + 1} of {matches.length}
                   </div>
                   <div className="match-title">
-                    {formatDate(matches[currentMatchIndex].match_date)} vs {matches[currentMatchIndex].rival_name}
-                    {matches[currentMatchIndex].score && ` (${matches[currentMatchIndex].score})`}
+                    {(() => {
+                      const match = matches[currentMatchIndex]
+                      if (match.source === 'legacy') {
+                        return `${formatDate(match.match_date)} vs ${match.rival_name}${match.score ? ` (${match.score})` : ''}`
+                      } else {
+                        return `${formatDate(match.metadata.match_date)} vs ${match.metadata.opponent} (MW${match.metadata.matchweek})${match.metadata.result ? ` - ${match.metadata.result}` : ''}`
+                      }
+                    })()}
+                    <span style={{ 
+                      marginLeft: '8px', 
+                      padding: '2px 6px', 
+                      borderRadius: '4px', 
+                      fontSize: '10px',
+                      background: matches[currentMatchIndex].source === 'legacy' ? 'rgba(156, 163, 175, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                      color: matches[currentMatchIndex].source === 'legacy' ? '#9CA3AF' : '#22c55e'
+                    }}>
+                      {matches[currentMatchIndex].source === 'legacy' ? 'LEGACY' : 'GPS'}
+                    </span>
                   </div>
                 </div>
               </div>

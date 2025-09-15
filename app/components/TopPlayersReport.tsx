@@ -44,8 +44,8 @@ export default function TopPlayersReport() {
   const [filteredPlayers, setFilteredPlayers] = useState<PlayerAggregateData[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [selectedSeason, setSelectedSeason] = useState('2024-2025')
-  const [availableSeasons, setAvailableSeasons] = useState<string[]>(['2024-2025'])
+  const [selectedSeason, setSelectedSeason] = useState('2025-2026')
+  const [availableSeasons, setAvailableSeasons] = useState<string[]>(['2025-2026'])
   
   // Filters
   const [minMinutes, setMinMinutes] = useState(90) // Minimum 90 minutes played
@@ -64,7 +64,6 @@ export default function TopPlayersReport() {
 
   useEffect(() => {
     loadAvailableSeasons()
-    loadTopPlayers()
   }, [])
 
   // Close dropdowns when clicking outside
@@ -82,10 +81,10 @@ export default function TopPlayersReport() {
   }, [])
 
   useEffect(() => {
-    if (selectedSeason) {
+    if (selectedSeason && availableSeasons.length > 0 && availableSeasons.includes(selectedSeason)) {
       loadTopPlayers()
     }
-  }, [selectedSeason])
+  }, [selectedSeason, availableSeasons])
 
   useEffect(() => {
     if (playersData) {
@@ -96,11 +95,20 @@ export default function TopPlayersReport() {
   const loadAvailableSeasons = async () => {
     try {
       const result = await CSVReportService.getSeasonsList()
-      if (result.success && result.data) {
+      if (result.success && result.data && result.data.length > 0) {
         setAvailableSeasons(result.data)
+        // Set the first available season as default if current selection isn't available
+        if (!result.data.includes(selectedSeason)) {
+          setSelectedSeason(result.data[0])
+        }
+      } else {
+        // No seasons found
+        setAvailableSeasons([])
+        setError('No match reports found. Please upload some match data first.')
       }
     } catch (error) {
       console.error('Error loading seasons:', error)
+      setError('Failed to load available seasons')
     }
   }
 
@@ -109,10 +117,21 @@ export default function TopPlayersReport() {
     setError('')
     
     try {
+      if (availableSeasons.length === 0) {
+        setError('No match reports found. Please upload match data in the League section first.')
+        return
+      }
+
       const result = await CSVReportService.getTeamAveragesBySeason(selectedSeason)
       
       if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to load player data')
+        const errorMsg = result.error || 'Failed to load player data'
+        if (errorMsg.includes('No reports found for season')) {
+          setError(`No match reports found for ${selectedSeason} season. Please upload match data in the League section or select a different season.`)
+        } else {
+          setError(errorMsg)
+        }
+        return
       }
 
       const aggregatedData = result.data.aggregatedData

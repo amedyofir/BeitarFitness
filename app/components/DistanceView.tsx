@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { isExcludedPlayer } from '../../lib/constants'
-import { Loader2, Save, X, Download } from 'lucide-react'
+import { Loader2, Save, X, Download, Palette, Maximize2 } from 'lucide-react'
 import generatePDF from 'react-to-pdf'
 import html2canvas from 'html2canvas'
 
@@ -50,19 +50,325 @@ export default function DistanceView() {
     }
   }
 
-  const handleDownloadImage = () => {
-    if (targetRef.current) {
-      html2canvas(targetRef.current, {
-        backgroundColor: '#000000',
-        useCORS: true,
-        allowTaint: true,
-        scale: 2
-      }).then(canvas => {
-        const link = document.createElement('a')
-        link.download = 'distance-report.png'
-        link.href = canvas.toDataURL('image/png')
-        link.click()
-      })
+  const handleDownloadImage = async () => {
+    if (!targetRef.current) return
+
+    try {
+      const scrollContainer = targetRef.current.querySelector('.distance-data-scroll') as HTMLElement
+      const synchronizedContainer = targetRef.current.querySelector('.distance-synchronized-container') as HTMLElement
+      
+      // Store original styles
+      const originalStyles = {
+        scrollOverflow: scrollContainer?.style.overflow || '',
+        scrollWidth: scrollContainer?.style.width || '',
+        scrollMinWidth: scrollContainer?.style.minWidth || '',
+        scrollHeight: scrollContainer?.style.height || '',
+        scrollMaxHeight: scrollContainer?.style.maxHeight || '',
+        containerWidth: synchronizedContainer?.style.width || '',
+        containerMaxWidth: synchronizedContainer?.style.maxWidth || '',
+        containerHeight: synchronizedContainer?.style.height || '',
+        containerMaxHeight: synchronizedContainer?.style.maxHeight || '',
+        targetHeight: targetRef.current?.style.height || '',
+        targetMaxHeight: targetRef.current?.style.maxHeight || '',
+        targetOverflow: targetRef.current?.style.overflow || ''
+      }
+
+      // Apply temporary styles for capture
+      if (exportFullWidth && scrollContainer && synchronizedContainer) {
+        // Expand the container to show all content
+        scrollContainer.style.overflow = 'visible'
+        scrollContainer.style.width = 'max-content'
+        scrollContainer.style.minWidth = 'max-content'
+        scrollContainer.style.height = 'auto'
+        scrollContainer.style.maxHeight = 'none'
+        synchronizedContainer.style.width = 'max-content'
+        synchronizedContainer.style.maxWidth = 'none'
+        synchronizedContainer.style.height = 'auto'
+        synchronizedContainer.style.maxHeight = 'none'
+        
+        // Also ensure the target ref itself can expand
+        if (targetRef.current) {
+          targetRef.current.style.height = 'auto'
+          targetRef.current.style.maxHeight = 'none'
+          targetRef.current.style.overflow = 'visible'
+        }
+      }
+
+      // Force a reflow to ensure styles are applied
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      // Force layout recalculation for full height capture
+      if (exportFullWidth && targetRef.current) {
+        targetRef.current.style.display = 'block'
+        targetRef.current.style.position = 'static'
+        
+        // Calculate the actual content height by measuring all child elements
+        const allRows = targetRef.current.querySelectorAll('.distance-data-row, .distance-players-column > div')
+        const totalContentHeight = Array.from(allRows).reduce((height, row) => {
+          const rect = (row as HTMLElement).getBoundingClientRect()
+          return height + rect.height
+        }, 0)
+        
+        // Add extra padding for headers and margins
+        const estimatedFullHeight = totalContentHeight + 200
+        
+        console.log('Calculated content height:', totalContentHeight, 'Full height:', estimatedFullHeight)
+        
+        // Force the container to this height
+        if (synchronizedContainer) {
+          synchronizedContainer.style.minHeight = `${estimatedFullHeight}px`
+        }
+      }
+
+      // Get current scroll position for visible mode
+      const currentScrollLeft = scrollContainer?.scrollLeft || 0
+      const currentScrollTop = scrollContainer?.scrollTop || 0
+
+      const captureOptions: any = {
+        "backgroundColor": isWhiteTheme ? '#ffffff' : '#000000',
+        "useCORS": true,
+        "allowTaint": true,
+        "scale": 2,
+        "logging": false,
+        "onclone": (clonedDoc: Document) => {
+          // Fix header alignment - make it truly centered
+          const header = clonedDoc.querySelector('.pdf-header') as HTMLElement
+          if (header && exportFullWidth) {
+            header.style.width = '100%'
+            header.style.display = 'flex'
+            header.style.flexDirection = 'column'
+            header.style.alignItems = 'center'
+            header.style.justifyContent = 'center'
+            header.style.padding = '20px'
+            header.style.boxSizing = 'border-box'
+          }
+          
+          const headerContent = clonedDoc.querySelector('.pdf-header-content') as HTMLElement
+          if (headerContent) {
+            headerContent.style.display = 'flex'
+            headerContent.style.justifyContent = 'center'
+            headerContent.style.alignItems = 'center'
+            headerContent.style.width = 'auto'
+            headerContent.style.margin = '0 auto'
+          }
+
+          // Fix table container and borders
+          const clonedElement = clonedDoc.querySelector('.distance-synchronized-container') as HTMLElement
+          const clonedScrollContainer = clonedDoc.querySelector('.distance-data-scroll') as HTMLElement
+          const clonedPlayersColumn = clonedDoc.querySelector('.distance-players-column') as HTMLElement
+          
+          if (clonedElement) {
+            if (exportFullWidth) {
+              clonedElement.style.display = 'grid'
+              clonedElement.style.width = 'max-content'
+              clonedElement.style.gridTemplateColumns = '120px max-content'
+              clonedElement.style.gridGap = '0'
+              clonedElement.style.gap = '0'
+            }
+            clonedElement.style.border = isWhiteTheme ? '2px solid #ddd' : '2px solid #333'
+            clonedElement.style.borderRadius = '8px'
+            clonedElement.style.overflow = 'visible'
+            clonedElement.style.margin = '0'
+          }
+          
+          // CRITICAL: Ensure both columns use the same display structure
+          if (clonedPlayersColumn && clonedScrollContainer) {
+            // Debug: Log the structure
+            console.log('Player column children:', clonedPlayersColumn.children.length)
+            console.log('Data scroll children:', clonedScrollContainer.children.length)
+            
+            // Both columns must use flex column layout
+            clonedPlayersColumn.style.display = 'flex'
+            clonedPlayersColumn.style.flexDirection = 'column'
+            clonedPlayersColumn.style.margin = '0'
+            clonedPlayersColumn.style.padding = '0'
+            clonedPlayersColumn.style.gap = '0'
+            
+            clonedScrollContainer.style.display = 'flex'
+            clonedScrollContainer.style.flexDirection = 'column'
+            clonedScrollContainer.style.margin = '0'
+            clonedScrollContainer.style.padding = '0'
+            clonedScrollContainer.style.gap = '0'
+            
+            // Ensure exact count match by checking structure
+            const playerChildren = Array.from(clonedPlayersColumn.children)
+            const dataChildren = Array.from(clonedScrollContainer.children)
+            
+            console.log('Player children details:')
+            playerChildren.forEach((child, index) => {
+              console.log(`${index}: ${child.className} - ${child.textContent?.trim()}`)
+            })
+            
+            console.log('Data children details:')
+            dataChildren.forEach((child, index) => {
+              console.log(`${index}: ${child.className}`)
+            })
+          }
+
+          // Handle scroll container based on mode
+          if (clonedScrollContainer) {
+            if (exportFullWidth) {
+              // For full width, expand the scroll container
+              clonedScrollContainer.style.overflow = 'visible'
+              clonedScrollContainer.style.width = 'max-content'
+              clonedScrollContainer.style.maxWidth = 'none'
+            } else {
+              // For visible mode, preserve current scroll position by transforming content
+              console.log('Visible mode - applying scroll offset:', currentScrollLeft)
+              clonedScrollContainer.style.overflow = 'hidden'
+              clonedScrollContainer.style.transform = `translateX(-${currentScrollLeft}px)`
+              clonedScrollContainer.style.width = scrollContainer?.offsetWidth + 'px'
+              clonedScrollContainer.style.height = scrollContainer?.offsetHeight + 'px'
+            }
+          }
+
+          // Fix week headers row specifically
+          const weeksHeader = clonedDoc.querySelector('.distance-weeks-header') as HTMLElement
+          if (weeksHeader) {
+            weeksHeader.style.display = 'flex'
+            weeksHeader.style.width = '100%'
+          }
+
+          // Fix all cells borders and spacing
+          const allCells = clonedDoc.querySelectorAll('.distance-data-cell, .distance-player-cell, .distance-header-cell, .distance-week-header, .distance-data-row')
+          allCells.forEach((cell: Element) => {
+            const htmlCell = cell as HTMLElement
+            htmlCell.style.boxSizing = 'border-box'
+            htmlCell.style.border = isWhiteTheme ? '1px solid #ddd' : '1px solid #333'
+            htmlCell.style.margin = '0'
+            htmlCell.style.padding = htmlCell.classList.contains('distance-data-row') ? '0' : htmlCell.style.padding
+          })
+          
+          // Specifically fix data rows to remove gaps and ensure consistent height
+          const dataRows = clonedDoc.querySelectorAll('.distance-data-row')
+          dataRows.forEach((row: Element, index: number) => {
+            const htmlRow = row as HTMLElement
+            htmlRow.style.display = 'flex'
+            htmlRow.style.gap = '0'
+            htmlRow.style.margin = '0'
+            htmlRow.style.marginTop = '0'
+            htmlRow.style.marginBottom = '0'
+            htmlRow.style.padding = '0'
+            htmlRow.style.borderSpacing = '0'
+            htmlRow.style.height = '48px'
+            htmlRow.style.minHeight = '48px'
+            htmlRow.style.maxHeight = '48px'
+            htmlRow.style.alignItems = 'center'
+          })
+          
+          // Ensure exact same height for player column header and week header
+          const playerHeaderCell = clonedDoc.querySelector('.distance-header-cell') as HTMLElement
+          const weekHeaders = clonedDoc.querySelector('.distance-weeks-header') as HTMLElement
+          if (playerHeaderCell && weekHeaders) {
+            playerHeaderCell.style.height = '60px'
+            playerHeaderCell.style.minHeight = '60px'
+            playerHeaderCell.style.maxHeight = '60px'
+            playerHeaderCell.style.display = 'flex'
+            playerHeaderCell.style.alignItems = 'center'
+            playerHeaderCell.style.justifyContent = 'center'
+            
+            weekHeaders.style.height = '60px'
+            weekHeaders.style.minHeight = '60px'
+            weekHeaders.style.maxHeight = '60px'
+          }
+          
+          // Fix all player cells to have exact same height
+          const playerCells = clonedDoc.querySelectorAll('.distance-player-cell')
+          playerCells.forEach((cell: Element) => {
+            const htmlCell = cell as HTMLElement
+            htmlCell.style.margin = '0'
+            htmlCell.style.padding = '8px'
+            htmlCell.style.height = '48px'
+            htmlCell.style.minHeight = '48px'
+            htmlCell.style.maxHeight = '48px'
+            htmlCell.style.boxSizing = 'border-box'
+            htmlCell.style.display = 'flex'
+            htmlCell.style.alignItems = 'center'
+            htmlCell.style.justifyContent = 'center'
+            htmlCell.style.fontSize = '13px'
+          })
+          
+          // Ensure all data cells in all rows have exact same height
+          const allDataCells = clonedDoc.querySelectorAll('.distance-data-cell')
+          allDataCells.forEach((cell: Element) => {
+            const htmlCell = cell as HTMLElement
+            htmlCell.style.height = '48px'
+            htmlCell.style.minHeight = '48px'
+            htmlCell.style.maxHeight = '48px'
+            htmlCell.style.boxSizing = 'border-box'
+            htmlCell.style.display = 'flex'
+            htmlCell.style.alignItems = 'center'
+            htmlCell.style.justifyContent = 'center'
+          })
+
+          // Ensure first column borders are visible
+          const firstWeekCells = clonedDoc.querySelectorAll('.distance-week-header:first-child, .distance-data-cell:first-child')
+          firstWeekCells.forEach((cell: Element) => {
+            const htmlCell = cell as HTMLElement
+            htmlCell.style.borderLeft = isWhiteTheme ? '2px solid #ddd' : '2px solid #333'
+          })
+        }
+      }
+
+      // Configure capture options based on mode
+      if (exportFullWidth && targetRef.current) {
+        // FULL WIDTH MODE: Capture everything
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const rect = targetRef.current.getBoundingClientRect()
+        const fullWidth = Math.max(targetRef.current.scrollWidth, rect.width)
+        const naturalHeight = targetRef.current.scrollHeight
+        const boundingHeight = rect.height
+        const containerHeight = synchronizedContainer?.getBoundingClientRect().height || 0
+        const fullHeight = Math.max(naturalHeight, boundingHeight, containerHeight) + 100
+        
+        console.log('Full mode - Height measurements:', naturalHeight, boundingHeight, containerHeight, 'Using:', fullHeight)
+        
+        captureOptions["width"] = fullWidth
+        captureOptions["height"] = fullHeight
+        captureOptions["x"] = 0
+        captureOptions["y"] = 0
+        captureOptions["scrollX"] = 0
+        captureOptions["scrollY"] = 0
+      } else if (targetRef.current) {
+        // VISIBLE MODE: Capture current viewport
+        console.log('Visible mode - capturing viewport at scroll position:', currentScrollLeft)
+        const rect = targetRef.current.getBoundingClientRect()
+        captureOptions["width"] = rect.width
+        captureOptions["height"] = rect.height
+        captureOptions["x"] = 0
+        captureOptions["y"] = 0
+      }
+
+      const canvas = await html2canvas(targetRef.current, captureOptions)
+
+      // Restore original styles
+      if (scrollContainer && synchronizedContainer) {
+        scrollContainer.style.overflow = originalStyles.scrollOverflow
+        scrollContainer.style.width = originalStyles.scrollWidth
+        scrollContainer.style.minWidth = originalStyles.scrollMinWidth
+        scrollContainer.style.height = originalStyles.scrollHeight
+        scrollContainer.style.maxHeight = originalStyles.scrollMaxHeight
+        synchronizedContainer.style.width = originalStyles.containerWidth
+        synchronizedContainer.style.maxWidth = originalStyles.containerMaxWidth
+        synchronizedContainer.style.height = originalStyles.containerHeight
+        synchronizedContainer.style.maxHeight = originalStyles.containerMaxHeight
+        
+        if (targetRef.current) {
+          targetRef.current.style.height = originalStyles.targetHeight
+          targetRef.current.style.maxHeight = originalStyles.targetMaxHeight
+          targetRef.current.style.overflow = originalStyles.targetOverflow
+        }
+      }
+
+      // Download the image
+      const link = document.createElement('a')
+      link.download = 'distance-report.png'
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } catch (error) {
+      console.error('Error generating PNG:', error)
+      alert('Failed to generate PNG. Please try again.')
     }
   }
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
@@ -75,6 +381,8 @@ export default function DistanceView() {
   const [editingMissingNote, setEditingMissingNote] = useState<EditingMissingNote | null>(null)
   const [isUpdatingNote, setIsUpdatingNote] = useState(false)
   const [isUpdatingMissingNote, setIsUpdatingMissingNote] = useState(false)
+  const [isWhiteTheme, setIsWhiteTheme] = useState(false)
+  const [exportFullWidth, setExportFullWidth] = useState(false)
 
   // Helper function to get week start date from a date
   const getWeekStartDate = (date: Date): Date => {
@@ -189,7 +497,10 @@ export default function DistanceView() {
 
       setPlayerData(playerWeeklyData)
       setWeeks(sortedWeeks)
-      setPlayers(Array.from(playerSet).sort())
+      const allPlayers = Array.from(playerSet).sort()
+      console.log('All players loaded:', allPlayers)
+      console.log('Looking for Ben Shimol variants:', allPlayers.filter(p => p.toLowerCase().includes('ben')))
+      setPlayers(allPlayers)
       
     } catch (err) {
       console.error('Error processing data:', err)
@@ -262,8 +573,10 @@ export default function DistanceView() {
     // Special cases for Cohen family
     if (fullName === 'Yarden Cohen') return 'Y. COHEN'
     if (fullName === 'Gil Cohen') return 'G. COHEN'
-          // Special case for Ben Shimol
-      if (fullName === 'Ziv Ben shimol') return 'BEN SHIMOL'
+    // Special case for Ben Shimol (flexible matching)
+    if (fullName.toLowerCase().includes('ben shimol') || fullName.toLowerCase().includes('ben-shimol')) {
+      return 'BEN SHIMOL'
+    }
 
     // For all other players, show only last name in uppercase
     const nameParts = fullName.split(' ')
@@ -433,6 +746,30 @@ export default function DistanceView() {
   return (
     <div className="distance-view-section">
       <div className="distance-header-actions">
+        <button 
+          onClick={() => setIsWhiteTheme(!isWhiteTheme)}
+          className="download-btn"
+          style={{
+            background: isWhiteTheme ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+            color: isWhiteTheme ? '#000' : '#FFD700'
+          }}
+        >
+          <Palette size={16} />
+          {isWhiteTheme ? 'Dark' : 'Light'}
+        </button>
+        <button 
+          onClick={() => setExportFullWidth(!exportFullWidth)}
+          className="download-btn"
+          style={{
+            background: exportFullWidth ? 'rgba(107, 207, 127, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+            color: exportFullWidth ? '#6BCF7F' : '#FFD700',
+            border: exportFullWidth ? '1px solid rgba(107, 207, 127, 0.5)' : '1px solid rgba(255, 215, 0, 0.3)'
+          }}
+          title={exportFullWidth ? 'Export full width enabled' : 'Export visible area only'}
+        >
+          <Maximize2 size={16} />
+          {exportFullWidth ? 'Full' : 'Visible'}
+        </button>
         <button onClick={handleDownloadPDF} className="download-btn">
           <Download size={16} />
           PDF
@@ -442,106 +779,158 @@ export default function DistanceView() {
           PNG
         </button>
       </div>
-      <div ref={targetRef}>
-        <div className="pdf-header">
+      <div ref={targetRef} style={isWhiteTheme ? {
+        backgroundColor: 'white',
+        color: 'black'
+      } : {}}>
+        <div className="pdf-header" style={isWhiteTheme ? {
+          backgroundColor: 'white',
+          color: 'black'
+        } : {}}>
           <div className="pdf-header-content">
-            <img src="/beitar-logo.png" alt="FCBJ Logo" className="pdf-header-logo" />
-            <h1 className="pdf-header-title">FCBJ - Scouting & Data</h1>
+            <img 
+              src="/beitar-logo.png" 
+              alt="FCBJ Logo" 
+              className="pdf-header-logo"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+              style={{
+                maxHeight: '60px',
+                width: 'auto'
+              }}
+            />
+            <h1 className="pdf-header-title" style={isWhiteTheme ? { color: 'black' } : {}}>FCBJ - Data</h1>
           </div>
         </div>
-        <div className="distance-horizontal-container">
-          {/* Header Row */}
-          <div className="distance-header-row">
-            <div className="player-column-header">Player</div>
-            <div className="weeks-scroll-container">
-              <div className="weeks-header">
-                {weeks.map((week, index) => {
-                  // Get target from first available player data for this week
-                  const weekTarget = players.find(player => playerData[player]?.[week])
-                    ? playerData[players.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-                    : 0
-                  
-                  return (
-                    <div key={week} className="week-header-horizontal">
-                      <div className="week-number">W{index + 1}</div>
-                      <div className="week-dates">
-                        {week}
-                      </div>
-                    </div>
-                  )
-                })}
+        <div className="distance-synchronized-container" style={isWhiteTheme ? {
+          backgroundColor: 'white',
+          color: 'black'
+        } : {}}>
+          {/* Player Names Column (Fixed) */}
+          <div className="distance-players-column" style={isWhiteTheme ? {
+            backgroundColor: 'white',
+            color: 'black'
+          } : {}}>
+            <div className="distance-header-cell" style={isWhiteTheme ? {
+              backgroundColor: 'white',
+              color: 'black',
+              borderColor: '#ddd'
+            } : {}}>Player</div>
+            <div className="distance-player-cell average-label" style={isWhiteTheme ? {
+              backgroundColor: 'white',
+              color: 'black',
+              borderColor: '#ddd'
+            } : {}}>AVERAGE</div>
+            {players.map(player => (
+              <div key={player} className="distance-player-cell" style={isWhiteTheme ? {
+                backgroundColor: 'white',
+                color: 'black',
+                borderColor: '#ddd'
+              } : {}}>
+                {formatPlayerName(player)}
               </div>
-            </div>
+            ))}
           </div>
 
-          {/* Average Row */}
-          <div className="distance-player-row average-row">
-            <div className="player-column-name average-label">AVERAGE</div>
-            <div className="weeks-scroll-container">
-              <div className="weeks-data">
+          {/* Scrollable Data Area */}
+          <div className="distance-data-scroll" style={isWhiteTheme ? {
+            backgroundColor: 'white',
+            color: 'black'
+          } : {}}>
+            {/* Header Row */}
+            <div className="distance-weeks-header" style={isWhiteTheme ? {
+              backgroundColor: 'white',
+              color: 'black'
+            } : {}}>
+              {weeks.map((week, index) => (
+                <div key={week} className="distance-week-header" style={isWhiteTheme ? {
+                  backgroundColor: 'white',
+                  color: 'black',
+                  borderColor: '#ddd'
+                } : {}}>
+                  <div className="week-number" style={isWhiteTheme ? { color: 'black' } : {}}>W{index + 1}</div>
+                  <div className="week-dates" style={isWhiteTheme ? { color: 'black' } : {}}>
+                    {week}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Average Row */}
+            <div className="distance-data-row average-row" style={isWhiteTheme ? {
+              backgroundColor: 'white',
+              color: 'black'
+            } : {}}>
+              {weeks.map(week => {
+                // Calculate average for players who have data in this week
+                const playersWithData = players.filter(player => playerData[player]?.[week])
+                
+                // Filter out zero values from distance calculation
+                const validDistances = playersWithData
+                  .map(player => playerData[player][week]?.total_distance || 0)
+                  .filter(distance => distance > 0)
+                
+                const avgDistance = validDistances.length > 0 ? 
+                  validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
+                const weekTarget = playersWithData.find(player => playerData[player]?.[week])
+                  ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
+                  : 0
+                
+                return (
+                  <div key={week} className="distance-data-cell average-cell" style={isWhiteTheme ? {
+                    backgroundColor: 'white',
+                    color: 'black',
+                    borderColor: '#ddd'
+                  } : {}}>
+                    {validDistances.length > 0 ? (
+                      <div className="cell-content-horizontal">
+                        <div className={`distance-compact ${getPerformanceClass(avgDistance, weekTarget * 1000)}`} style={isWhiteTheme ? { color: 'black' } : {}}>
+                          {formatDistance(avgDistance)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="missing-cell" style={isWhiteTheme ? { color: 'black' } : {}}>No data</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Player Rows */}
+            {players.map(player => (
+              <div key={player} className="distance-data-row" style={isWhiteTheme ? {
+                backgroundColor: 'white',
+                color: 'black'
+              } : {}}>
                 {weeks.map(week => {
-                  // Calculate average for players who have data in this week
-                  const playersWithData = players.filter(player => playerData[player]?.[week])
-                  
-                  // Filter out zero values from distance calculation
-                  const validDistances = playersWithData
-                    .map(player => playerData[player][week]?.total_distance || 0)
-                    .filter(distance => distance > 0)
-                  
-                  const avgDistance = validDistances.length > 0 ? 
-                    validDistances.reduce((sum, distance) => sum + distance, 0) / validDistances.length : 0
-                  const weekTarget = playersWithData.find(player => playerData[player]?.[week])
-                    ? playerData[playersWithData.find(player => playerData[player]?.[week])!][week]?.target_km || 0
-                    : 0
-                  
+                  const data = playerData[player]?.[week]
                   return (
-                    <div key={week} className="week-data-cell average-cell">
-                      {validDistances.length > 0 ? (
+                    <div key={week} className="distance-data-cell" style={isWhiteTheme ? {
+                      backgroundColor: 'white',
+                      color: 'black',
+                      borderColor: '#ddd'
+                    } : {}}>
+                      {data ? (
                         <div className="cell-content-horizontal">
-                          <div className={`distance-compact ${getPerformanceClass(avgDistance, weekTarget * 1000)}`}>
-                            {formatDistance(avgDistance)}
+                          <div className={`distance-compact ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`} style={isWhiteTheme ? { color: 'black' } : {}}>
+                            {formatDistance(data.total_distance)}
                           </div>
                         </div>
                       ) : (
-                        <div className="missing-cell">No data</div>
+                        <div className="missing-week-content">
+                          <div className="missing-week-placeholder">
+                            <span className="missing-indicator" style={isWhiteTheme ? { color: 'black' } : {}}>-</span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )
                 })}
               </div>
-            </div>
+            ))}
           </div>
-
-          {/* Player Rows */}
-          {players.map(player => (
-            <div key={player} className="distance-player-row">
-              <div className="player-column-name">{formatPlayerName(player)}</div>
-              <div className="weeks-scroll-container">
-                <div className="weeks-data">
-                  {weeks.map(week => {
-                    const data = playerData[player]?.[week]
-                    return (
-                      <div key={week} className="week-data-cell">
-                        {data ? (
-                          <div className="cell-content-horizontal">
-                            <div className={`distance-compact ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`}>
-                              {formatDistance(data.total_distance)}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="missing-week-content">
-                            <div className="missing-week-placeholder">
-                              <span className="missing-indicator">-</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

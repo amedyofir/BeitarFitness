@@ -28,14 +28,17 @@ export default function Home() {
             alt="Beitar Jerusalem Logo" 
             className="navbar-logo"
           />
-                      <h1 className="navbar-title">FCBJ - Scouting & Data</h1>
+                      <h1 className="navbar-title">FCBJ - Data</h1>
         </div>
       </nav>
       
       <header className="header">
         <div className="header-content">
-          <h1>Fitness Tracker</h1>
-          <p>Advanced analytics for peak performance</p>
+          <h1>
+            Beitar Jerusalem 
+            <span className="separator">|</span>
+            Data Platform
+          </h1>
         </div>
       </header>
 

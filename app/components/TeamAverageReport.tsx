@@ -572,31 +572,6 @@ export default function TeamAverageReport() {
         </div>
       </div>
 
-      {/* Season Summary */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: '16px',
-        marginBottom: '20px'
-      }}>
-        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-          <TrendingUp size={24} style={{ color: '#FFD700', marginBottom: '8px' }} />
-          <div style={{ color: '#fff', fontSize: '20px', fontWeight: '600' }}>{averageData.totalMatches}</div>
-          <div style={{ color: 'var(--secondary-text)', fontSize: '14px' }}>Matches Analyzed</div>
-        </div>
-        
-        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-          <Users size={24} style={{ color: '#22c55e', marginBottom: '8px' }} />
-          <div style={{ color: '#fff', fontSize: '20px', fontWeight: '600' }}>{allTeams.length}</div>
-          <div style={{ color: 'var(--secondary-text)', fontSize: '14px' }}>Teams Analyzed</div>
-        </div>
-        
-        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-          <Target size={24} style={{ color: '#ef4444', marginBottom: '8px' }} />
-          <div style={{ color: '#fff', fontSize: '20px', fontWeight: '600' }}>{allTeams.length}</div>
-          <div style={{ color: 'var(--secondary-text)', fontSize: '14px' }}>Teams Compared</div>
-        </div>
-      </div>
 
       {/* Matches Included */}
       <div className="glass-card" style={{ padding: '16px', marginBottom: '20px' }}>
@@ -646,6 +621,10 @@ export default function TeamAverageReport() {
             style={{ 
               height: '50px',
               width: 'auto'
+            }}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
             }}
           />
           <h1 style={{ 

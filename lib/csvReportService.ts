@@ -24,7 +24,7 @@ export class CSVReportService {
         matchday_number: data.matchday_number,
         opponent_team: data.opponent_team,
         match_date: data.match_date,
-        season: data.season || '2024-2025',
+        season: data.season || '2025-2026',
         filename: data.filename,
         original_filename: data.original_filename,
         csv_content: data.csv_content,
@@ -295,7 +295,7 @@ export class CSVReportService {
   /**
    * Get aggregated team averages across all matches for a season
    */
-  static async getTeamAveragesBySeason(season: string = '2024-2025'): Promise<{ success: boolean; data?: any; error?: string }> {
+  static async getTeamAveragesBySeason(season: string = '2025-2026'): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       const result = await this.getAllReports()
       

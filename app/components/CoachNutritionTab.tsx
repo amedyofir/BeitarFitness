@@ -24,7 +24,7 @@ import {
   fetchBodyCompositionData, 
   replaceBodyCompositionData, 
   validateBodyCompositionData,
-  type BodyCompositionData 
+  type BodyCompositionData as ServiceBodyCompositionData 
 } from '../../lib/bodyCompositionService'
 
 ChartJS.register(
@@ -218,7 +218,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
   }
 
   // Get unique players
-  const uniquePlayers = [...new Set(bodyCompositionData.map(data => data.player))]
+  const uniquePlayers = Array.from(new Set(bodyCompositionData.map(data => data.player)))
 
   // Get player trend data
   const getPlayerTrendData = (playerName: string) => {
@@ -313,7 +313,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
       <div className="glass-card" style={{ padding: '20px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <Scale size={24} color="#FFD700" />
-          <h2 style={{ color: '#fff', margin: 0 }}>תזונה</h2>
+          <h2 style={{ color: '#fff', margin: 0 }}>Fat %</h2>
         </div>
 
 
@@ -397,7 +397,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                 if (playerName.includes('Shimol')) {
                   console.log('Shimol player name from CSV:', playerName)
                   console.log('Shimol name length:', playerName.length)
-                  console.log('Shimol name bytes:', [...playerName].map(c => c.charCodeAt(0)))
+                  console.log('Shimol name bytes:', Array.from(playerName).map(c => c.charCodeAt(0)))
                 }
               }
               
@@ -447,13 +447,13 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                   label: {
                     display: true,
                     content: `Min: ${benchmark.min}%`,
-                    position: 'start',
+                    position: 'start' as const,
                     xAdjust: -80, // Move further left to ensure visibility
                     backgroundColor: 'rgba(34, 197, 94, 0.8)',
                     color: '#fff',
                     font: {
                       size: 10,
-                      weight: 'bold'
+                      weight: 'bold' as const
                     },
                     padding: 4
                   }
@@ -468,13 +468,13 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                   label: {
                     display: true,
                     content: `Max: ${benchmark.max}%`,
-                    position: 'end',
+                    position: 'end' as const,
                     xAdjust: 80, // Move further right to ensure visibility
                     backgroundColor: 'rgba(34, 197, 94, 0.8)',
                     color: '#fff',
                     font: {
                       size: 10,
-                      weight: 'bold'
+                      weight: 'bold' as const
                     },
                     padding: 4
                   }
@@ -491,7 +491,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
               const playerChartOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
-                clip: false, // Allow labels to extend beyond chart area
+                clip: false as false, // Allow labels to extend beyond chart area
                 interaction: {
                   intersect: false,
                   mode: 'index' as const
@@ -540,9 +540,9 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                     },
                     font: {
                       size: 11,
-                      weight: 'bold'
+                      weight: 'bold' as const
                     },
-                    align: 'top',
+                    align: 'top' as const,
                     offset: 6,
                     clip: false, // Ensure labels are not clipped
                     formatter: (value: number) => {
@@ -706,8 +706,8 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                       </div>
                       <div style={{
                         color: trend > 0 ? 
-                          (playerSelectedMetric === 'leanMass' ? '#22c55e' : '#ef4444') : 
-                          (playerSelectedMetric === 'fat' ? '#22c55e' : '#ef4444'),
+                          (playerSelectedMetric === 'leanMass' ? '#22c55e' : playerSelectedMetric === 'fat' ? '#ef4444' : '#ef4444') : 
+                          (playerSelectedMetric === 'fat' ? '#22c55e' : playerSelectedMetric === 'leanMass' ? '#ef4444' : '#22c55e'),
                         fontSize: '14px',
                         fontWeight: '500',
                         marginTop: '4px'
@@ -978,7 +978,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
           indexAxis: 'y' as const, // Horizontal bars
           responsive: true,
           maintainAspectRatio: false,
-          clip: false, // Allow labels to extend beyond chart area
+          clip: false as false, // Allow labels to extend beyond chart area
           plugins: {
             legend: { display: false },
             title: {
@@ -1002,11 +1002,11 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
               },
               font: {
                 size: displayMode === 'trend' ? 11 : displayMode === 'benchmark' ? 11 : 14,
-                weight: 'bold',
+                weight: 'bold' as const,
                 family: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
               },
-              align: 'right',
-              anchor: 'end',
+              align: 'right' as const,
+              anchor: 'end' as const,
               offset: displayMode === 'benchmark' ? 15 : 6,
               clip: false, // Ensure labels are never clipped
               formatter: (value: number, context: any) => {
@@ -1066,7 +1066,7 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
             annotation: {
               annotations: {
                 averageLine: {
-                  type: 'line',
+                  type: 'line' as const,
                   scaleID: 'x',
                   value: teamAverage,
                   borderColor: '#ef4444',
@@ -1079,12 +1079,12 @@ export default function CoachNutritionTab({ activeNutritionTab, setActiveNutriti
                       displayMode === 'benchmark' ? 
                       `Avg Distance: ${teamAverage.toFixed(1)}%` :
                       `Avg: ${teamAverage.toFixed(1)}${comparisonMetric === 'fat' ? '%' : 'kg'}`,
-                    position: 'start',
+                    position: 'start' as const,
                     backgroundColor: 'rgba(239, 68, 68, 0.8)',
                     color: '#fff',
                     font: {
                       size: 12,
-                      weight: 'bold'
+                      weight: 'bold' as const
                     },
                     padding: {
                       top: 4,

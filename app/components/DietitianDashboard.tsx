@@ -254,7 +254,7 @@ export default function DietitianDashboard() {
       
     } catch (error) {
       console.error('Export failed:', error)
-      alert(`Export failed: ${error.message}. Please try again.`)
+      alert(`Export failed: ${(error as Error).message}. Please try again.`)
     }
   }
 
@@ -595,7 +595,7 @@ export default function DietitianDashboard() {
     indexAxis: 'y' as const, // Horizontal bars
     responsive: true,
     maintainAspectRatio: false,
-    clip: false, // Allow labels to extend beyond chart area
+    clip: false as false, // Allow labels to extend beyond chart area
     plugins: {
       legend: { display: false },
       title: {
@@ -619,13 +619,13 @@ export default function DietitianDashboard() {
         },
         font: {
           size: displayMode === 'trend' ? 11 : displayMode === 'benchmark' ? 11 : 14,
-          weight: 'bold',
+          weight: 'bold' as const,
           family: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
         },
-        align: 'right',
+        align: 'right' as const,
         anchor: 'end',
         offset: displayMode === 'benchmark' ? 15 : 6,
-        clip: false, // Ensure labels are never clipped
+        clip: false as false, // Ensure labels are never clipped
         formatter: (value: number, context: any) => {
           if (displayMode === 'trend') {
             const playerIndex = context.dataIndex
@@ -705,7 +705,7 @@ export default function DietitianDashboard() {
               color: '#fff',
               font: {
                 size: 12,
-                weight: 'bold'
+                weight: 'bold' as const
               },
               padding: {
                 top: 4,
@@ -1043,7 +1043,7 @@ export default function DietitianDashboard() {
                       if (playerName.includes('Shimol')) {
                         console.log('Shimol player name from CSV:', playerName)
                         console.log('Shimol name length:', playerName.length)
-                        console.log('Shimol name bytes:', [...playerName].map(c => c.charCodeAt(0)))
+                        console.log('Shimol name bytes:', Array.from(playerName).map(c => c.charCodeAt(0)))
                       }
                     }
                     
@@ -1099,7 +1099,7 @@ export default function DietitianDashboard() {
                           color: '#fff',
                           font: {
                             size: 10,
-                            weight: 'bold'
+                            weight: 'bold' as const
                           },
                           padding: 4
                         }
@@ -1120,7 +1120,7 @@ export default function DietitianDashboard() {
                           color: '#fff',
                           font: {
                             size: 10,
-                            weight: 'bold'
+                            weight: 'bold' as const
                           },
                           padding: 4
                         }
@@ -1137,7 +1137,7 @@ export default function DietitianDashboard() {
                     const playerChartOptions = {
                       responsive: true,
                       maintainAspectRatio: false,
-                      clip: false, // Allow labels to extend beyond chart area
+                      clip: false as false, // Allow labels to extend beyond chart area
                       interaction: {
                         intersect: false,
                         mode: 'index' as const
@@ -1186,11 +1186,11 @@ export default function DietitianDashboard() {
                           },
                           font: {
                             size: 11,
-                            weight: 'bold'
+                            weight: 'bold' as const
                           },
-                          align: 'top',
+                          align: 'top' as const,
                           offset: 6,
-                          clip: false, // Ensure labels are not clipped
+                          clip: false as false, // Ensure labels are not clipped
                           formatter: (value: number) => {
                             return `${value.toFixed(1)}${playerSelectedMetric === 'fat' ? '%' : ''}`
                           },
