@@ -22,6 +22,9 @@
   --border-radius: 16px;
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --developer-accent: #ff4757;
+  --developer-bg: rgba(255, 71, 87, 0.1);
+  --developer-border: rgba(255, 71, 87, 0.2);
 }
 
 /* Reset and Base Styles */
@@ -6960,4 +6963,128 @@ input[type="file"] {
 .intensity-data-cell .missing-indicator,
 .distance-data-cell .missing-indicator {
   opacity: 0.5;
+}
+
+/* Developer Access Styles */
+.developer-locked {
+  background: var(--developer-bg) !important;
+  border: 1px solid var(--developer-border) !important;
+  color: var(--developer-accent) !important;
+  position: relative;
+}
+
+.developer-locked:hover {
+  background: rgba(255, 71, 87, 0.15) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 71, 87, 0.3);
+}
+
+.developer-unlocked {
+  background: linear-gradient(135deg, var(--developer-accent), #ff3838) !important;
+  border: 1px solid var(--developer-accent) !important;
+  color: white !important;
+}
+
+.developer-unlocked:hover {
+  background: linear-gradient(135deg, #ff3838, var(--developer-accent)) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 71, 87, 0.4);
+}
+
+.developer-nav {
+  background: var(--developer-bg);
+  border: 1px solid var(--developer-border);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.developer-nav::before {
+  content: "🔧 DEVELOPER TOOLS";
+  position: absolute;
+  top: -12px;
+  left: 20px;
+  background: var(--primary-bg);
+  color: var(--developer-accent);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.developer-nav .section-button {
+  border: 1px solid var(--developer-border);
+  background: rgba(255, 71, 87, 0.05);
+}
+
+.developer-nav .section-button:hover {
+  background: rgba(255, 71, 87, 0.1);
+  border-color: var(--developer-accent);
+}
+
+.developer-nav .section-button.active {
+  background: var(--developer-accent);
+  color: white;
+  border-color: var(--developer-accent);
+}
+
+/* Navbar Layout Updates */
+.navbar-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Developer Access Button in Navbar */
+.developer-access-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.developer-access-btn.developer-locked {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.2);
+  color: var(--developer-accent);
+}
+
+.developer-access-btn.developer-locked:hover {
+  background: rgba(255, 71, 87, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 71, 87, 0.2);
+}
+
+.developer-access-btn.developer-unlocked {
+  background: linear-gradient(135deg, var(--developer-accent), #ff3838);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+}
+
+.developer-access-btn.developer-unlocked:hover {
+  background: linear-gradient(135deg, #ff3838, var(--developer-accent));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255, 71, 87, 0.4);
 }
