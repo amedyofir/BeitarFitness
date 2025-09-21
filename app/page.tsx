@@ -12,13 +12,14 @@ import PlayersView from './components/PlayersView'
 import CoachDashboard from './components/CoachDashboard'
 import League from './components/League'
 import MatchdayWizard from './components/MatchdayWizard'
+import OpponentView from './components/OpponentView'
 import DietitianDashboard from './components/DietitianDashboard'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock } from 'lucide-react'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock, Target } from 'lucide-react'
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'developer'>('coach-dashboard')
   const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
-  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'dietitian'>('coaches')
+  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'opponent-view' | 'dietitian'>('coaches')
   const [showDeveloperAccess, setShowDeveloperAccess] = useState(false)
 
   return (
@@ -67,20 +68,6 @@ export default function Home() {
 
       <div className="content-container">
         <div className="glass-card">
-          {/* Main Section Navigation - Only show if not in developer mode */}
-          {!showDeveloperAccess && (
-            <nav className="section-nav">
-              <button
-                onClick={() => {
-                  setActiveSection('coach-dashboard')
-                }}
-                className={`section-button ${activeSection === 'coach-dashboard' ? 'active' : ''}`}
-              >
-                <TrendingUp />
-                Coach Dashboard
-              </button>
-            </nav>
-          )}
 
           {/* Coach Dashboard Section */}
           {activeSection === 'coach-dashboard' && (
@@ -130,6 +117,15 @@ export default function Home() {
                 >
                   <FileText />
                   Matchday Wizard
+                </button>
+                <button
+                  onClick={() => {
+                    setDeveloperSection('opponent-view')
+                  }}
+                  className={`section-button ${developerSection === 'opponent-view' ? 'active' : ''}`}
+                >
+                  <Target />
+                  Opponent View
                 </button>
                 <button
                   onClick={() => {
@@ -224,6 +220,13 @@ export default function Home() {
               {developerSection === 'matchday-wizard' && (
                 <div className="tab-content">
                   <MatchdayWizard />
+                </div>
+              )}
+
+              {/* Opponent View Section */}
+              {developerSection === 'opponent-view' && (
+                <div className="tab-content">
+                  <OpponentView />
                 </div>
               )}
 

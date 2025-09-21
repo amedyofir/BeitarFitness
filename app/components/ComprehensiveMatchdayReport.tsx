@@ -48,13 +48,106 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
     if (!exportRef.current) return
 
     try {
+      // Store original styles
+      const originalStyles = {
+        maxWidth: exportRef.current.style.maxWidth,
+        width: exportRef.current.style.width,
+        overflow: exportRef.current.style.overflow
+      }
+
+      // Find all table containers and store their styles
+      const tableContainers = exportRef.current.querySelectorAll('[style*="overflowX"]') as NodeListOf<HTMLElement>
+      const originalTableStyles = Array.from(tableContainers).map(container => ({
+        element: container,
+        overflow: container.style.overflow,
+        overflowX: container.style.overflowX,
+        width: container.style.width,
+        minWidth: container.style.minWidth
+      }))
+
+      // Temporarily modify styles for full-width capture
+      exportRef.current.style.maxWidth = 'none'
+      exportRef.current.style.width = 'fit-content'
+      exportRef.current.style.overflow = 'visible'
+
+      // Fix table containers to show full width
+      tableContainers.forEach(container => {
+        container.style.overflow = 'visible'
+        container.style.overflowX = 'visible'
+        container.style.width = 'auto'
+        container.style.minWidth = 'auto'
+      })
+
+      // Find all tables and ensure they show at full width
+      const tables = exportRef.current.querySelectorAll('table') as NodeListOf<HTMLTableElement>
+      const originalTableElementStyles = Array.from(tables).map(table => ({
+        element: table,
+        width: table.style.width,
+        minWidth: table.style.minWidth
+      }))
+
+      // Let tables use their natural width
+      tables.forEach(table => {
+        if (table.style.minWidth) {
+          // Keep minWidth if set, but remove width constraint
+          table.style.width = 'auto'
+        }
+      })
+
+      // Force a reflow to ensure styles are applied
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Get the actual content dimensions
+      const rect = exportRef.current.getBoundingClientRect()
+      
+      // Find the rightmost element to get exact width needed
+      const allElements = exportRef.current.querySelectorAll('*')
+      let maxRight = 0
+      allElements.forEach(el => {
+        const elRect = el.getBoundingClientRect()
+        const rightEdge = elRect.right - rect.left
+        if (rightEdge > maxRight) {
+          maxRight = rightEdge
+        }
+      })
+      
+      // Use the actual content width plus small padding
+      const fullWidth = Math.ceil(maxRight + 20) // Add 20px padding for safety
+      const fullHeight = Math.max(exportRef.current.scrollHeight, rect.height)
+
+      console.log('PNG Export - Dimensions:', { fullWidth, fullHeight, scrollWidth: exportRef.current.scrollWidth, scrollHeight: exportRef.current.scrollHeight })
+
       const canvas = await html2canvas(exportRef.current, {
         backgroundColor: '#242b3d',
         useCORS: true,
         allowTaint: true,
         scale: 2,
-        width: exportRef.current.scrollWidth,
-        height: exportRef.current.scrollHeight
+        width: fullWidth,
+        height: fullHeight,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+        logging: false
+      })
+
+      // Restore original styles
+      exportRef.current.style.maxWidth = originalStyles.maxWidth
+      exportRef.current.style.width = originalStyles.width
+      exportRef.current.style.overflow = originalStyles.overflow
+
+      // Restore table container styles
+      originalTableStyles.forEach(({ element, overflow, overflowX, width, minWidth }) => {
+        element.style.overflow = overflow
+        element.style.overflowX = overflowX
+        element.style.width = width
+        element.style.minWidth = minWidth
+      })
+
+      // Restore table element styles
+      originalTableElementStyles.forEach(({ element, width, minWidth }) => {
+        element.style.width = width
+        element.style.minWidth = minWidth
       })
 
       const link = document.createElement('a')
@@ -85,7 +178,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         matchday_number: matchdayNumber,
         opponent_team: selectedOpponent,
         match_date: matchDate, // Use the selected date
-        season: '2024-2025',
+        season: '2025-2026',
         uploaded_by: 'System', // You can modify this to use actual user
         filename: `matchday-${matchdayNumber}-vs-${selectedOpponent}.csv`,
         original_filename: `Running${matchdayNumber} (${selectedOpponent}).csv`,
@@ -305,6 +398,9 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
       ? 'linear-gradient(90deg, #22c55e, #16a34a)'
       : 'linear-gradient(90deg, #ef4444, #dc2626)'
     
+    // Format value with full distance format
+    const formattedValue = formatDistance(value)
+    
     return (
       <div style={{ 
         flex: 1, 
@@ -312,7 +408,8 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         background: 'rgba(255, 255, 255, 0.1)', 
         borderRadius: '7px',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        minWidth: '60px'
       }}>
         <div style={{
           width: `${percentage}%`,
@@ -323,14 +420,17 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         }} />
         <span style={{
           position: 'absolute',
-          right: '4px',
+          right: '2px',
           top: '50%',
           transform: 'translateY(-50%)',
-          fontSize: '16px',
+          fontSize: '14px',
           color: '#fff',
-          fontWeight: '600'
+          fontWeight: '700',
+          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+          whiteSpace: 'nowrap',
+          paddingLeft: '2px'
         }}>
-          {formatDistance(value)}
+          {formattedValue}
         </span>
       </div>
     )
@@ -361,7 +461,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
           {index + 1}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'left', color: '#fff', fontSize: '16px', fontWeight: '500', width: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {player.Player}
+          {player.Player}{player.Min ? ` ${player.Min}'` : ''}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#FFD700', fontSize: '16px', fontWeight: '600' }}>
           {formatDistance(totalDistance)}
@@ -378,11 +478,11 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         <td style={{ padding: '10px 8px', width: '140px' }}>
           <div style={{ marginBottom: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>In Poss</span>
+              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
               {renderProgressBar(inPoss, Math.max(...runningData.map(p => p.DistanceRunInPoss || 0)), 'green')}
             </div>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>Out Poss</span>
+              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
               {renderProgressBar(outPoss, Math.max(...runningData.map(p => p.DistanceRunOutPoss || 0)), 'red')}
             </div>
           </div>
@@ -390,7 +490,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         <td style={{ padding: '10px 8px', width: '140px' }}>
           <div style={{ marginBottom: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>In Poss</span>
+              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
               <div style={{ 
                 flex: 1, 
                 height: '14px', 
@@ -407,19 +507,19 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 }} />
                 <span style={{
                   position: 'absolute',
-                  right: '4px',
+                  right: '2px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  fontSize: '16px',
+                  fontSize: '14px',
                   color: '#fff',
-                  fontWeight: '600'
+                  fontWeight: '700'
                 }}>
                   {inPossIntensity.toFixed(1)}%
                 </span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>Out Poss</span>
+              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
               <div style={{ 
                 flex: 1, 
                 height: '14px', 
@@ -436,12 +536,12 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 }} />
                 <span style={{
                   position: 'absolute',
-                  right: '4px',
+                  right: '2px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  fontSize: '16px',
+                  fontSize: '14px',
                   color: '#fff',
-                  fontWeight: '600'
+                  fontWeight: '700'
                 }}>
                   {outPossIntensity.toFixed(1)}%
                 </span>
@@ -677,15 +777,15 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', fontSize: '16px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #FFD700', background: 'rgba(255, 215, 0, 0.05)' }}>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>RANK</th>
-                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '10px', width: '140px' }}>TEAM</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>MPM</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>SPEED</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>ALMOG</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
+                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '140px' }}>TEAM</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>ALMOG</th>
               </tr>
             </thead>
             <tbody>
@@ -702,37 +802,37 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                                   isOpponentRow ? 'rgba(239, 68, 68, 0.15)' : 'transparent'
                     }}
                   >
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {index + 1}
                     </td>
                     <td style={{ padding: '10px 4px', textAlign: 'left', color: '#fff', fontWeight: '500', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '16px' }}>
                       {team.team}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {formatDistance(team.totalDistance)}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
                       {Math.round(team.avgMPM)}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
                       {team.avgIntensity.toFixed(1)}%
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {formatSpeed(team.avgSpeed)}
                     </td>
                     <td style={{ padding: '10px 8px', minWidth: '160px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '10px', color: '#888', width: '45px', textAlign: 'left' }}>In Poss</span>
+                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
                         {renderProgressBar(team.totalInPoss, maxInPoss, 'green')}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontSize: '10px', color: '#888', width: '45px', textAlign: 'left' }}>Out Poss</span>
+                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
                         {renderProgressBar(team.totalOutPoss, maxOutPoss, 'red')}
                       </div>
                     </td>
                     <td style={{ padding: '10px 8px', minWidth: '160px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>In Poss</span>
+                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
                         <div style={{ 
                           flex: 1, 
                           height: '14px', 
@@ -749,19 +849,19 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                           }} />
                           <span style={{
                             position: 'absolute',
-                            right: '4px',
+                            right: '2px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            fontSize: '16px',
+                            fontSize: '14px',
                             color: '#fff',
-                            fontWeight: '600'
+                            fontWeight: '700'
                           }}>
                             {team.avgInPossIntensity.toFixed(1)}%
                           </span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '35px' }}>Out Poss</span>
+                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
                         <div style={{ 
                           flex: 1, 
                           height: '14px', 
@@ -778,12 +878,12 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                           }} />
                           <span style={{
                             position: 'absolute',
-                            right: '4px',
+                            right: '2px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            fontSize: '16px',
+                            fontSize: '14px',
                             color: '#fff',
-                            fontWeight: '600'
+                            fontWeight: '700'
                           }}>
                             {team.avgOutPossIntensity.toFixed(1)}%
                           </span>
@@ -817,11 +917,11 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', fontSize: '16px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #FFD700', background: 'rgba(255, 215, 0, 0.05)' }}>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>RANK</th>
-                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '10px', width: '140px' }}>TEAM</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>ALMOG</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
+                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '140px' }}>TEAM</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>ALMOG</th>
               </tr>
             </thead>
             <tbody>
@@ -902,7 +1002,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                                   isOpponentRow ? 'rgba(239, 68, 68, 0.15)' : 'transparent'
                     }}
                   >
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {index + 1}
                     </td>
                     <td style={{ padding: '10px 4px', textAlign: 'left', color: '#fff', fontWeight: '500', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '16px' }}>
@@ -911,7 +1011,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '20px' }}>1st</span>
+                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -931,16 +1031,16 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {formatDistance(firstHalfDistance)}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', color: '#ef4444', width: '20px' }}>2nd</span>
+                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -960,9 +1060,9 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {formatDistance(secondHalfDistance)}
                             </span>
@@ -973,7 +1073,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '20px' }}>1st</span>
+                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -993,16 +1093,16 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {firstHalfIntensity.toFixed(1)}%
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', color: '#ef4444', width: '20px' }}>2nd</span>
+                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -1022,9 +1122,9 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {secondHalfIntensity.toFixed(1)}%
                             </span>
@@ -1035,7 +1135,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '20px' }}>1st</span>
+                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -1055,16 +1155,16 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {firstHalfAlmog.toFixed(1)}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', color: '#ef4444', width: '20px' }}>2nd</span>
+                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
                           <div style={{ 
                             flex: 1, 
                             height: '12px', 
@@ -1084,9 +1184,9 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                               right: '2px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '10px',
+                              fontSize: '14px',
                               color: '#fff',
-                              fontWeight: '600'
+                              fontWeight: '700'
                             }}>
                               {secondHalfAlmog.toFixed(1)}
                             </span>
@@ -1118,15 +1218,15 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', fontSize: '16px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #FFD700', background: 'rgba(255, 215, 0, 0.05)' }}>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>RANK</th>
-                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '10px', width: '120px' }}>PLAYER</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>MPM</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>SPEED</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>ALMOG</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
+                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '120px' }}>PLAYER</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>ALMOG</th>
               </tr>
             </thead>
             <tbody>
@@ -1180,15 +1280,15 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', fontSize: '16px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #FFD700', background: 'rgba(255, 215, 0, 0.05)' }}>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>RANK</th>
-                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '10px', width: '120px' }}>PLAYER</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>MPM</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>SPEED</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>INTENSITY %</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '10px' }}>ALMOG</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
+                <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '120px' }}>PLAYER</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
+                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>ALMOG</th>
               </tr>
             </thead>
             <tbody>
@@ -1226,406 +1326,6 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
           </div>
         </div>
 
-        {/* 5. Head-to-Head Comparison */}
-        <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ 
-            color: '#FFD700', 
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '20px',
-            textAlign: 'center',
-            letterSpacing: '0.5px'
-          }}>
-            Head-to-Head Comparison
-          </h2>
-          
-          {beitarTeam && opponentTeam && (
-            <div style={{ 
-              background: 'rgba(255, 255, 255, 0.02)',
-              borderRadius: '12px',
-              padding: '20px',
-              border: '1px solid rgba(255, 215, 0, 0.2)'
-            }}>
-              
-              {/* Team Headers */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '20px',
-                padding: '12px 0'
-              }}>
-                <div style={{ 
-                  flex: 1, 
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: beitarTeam.almogScore > opponentTeam.almogScore 
-                    ? 'rgba(255, 215, 0, 0.1)'
-                    : 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px',
-                  border: beitarTeam.almogScore > opponentTeam.almogScore 
-                    ? '2px solid #FFD700' 
-                    : '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    color: beitarTeam.almogScore > opponentTeam.almogScore ? '#FFD700' : '#fff',
-                    marginBottom: '4px'
-                  }}>
-                    BEITAR JERUSALEM
-                  </div>
-                  <div style={{ 
-                    fontSize: '20px', 
-                    fontWeight: '700', 
-                    color: beitarTeam.almogScore > opponentTeam.almogScore ? '#FFD700' : '#fff'
-                  }}>
-                    {beitarTeam.almogScore.toFixed(1)}
-                  </div>
-                  {beitarTeam.almogScore > opponentTeam.almogScore && (
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: '#22c55e', 
-                      fontWeight: '600',
-                      marginTop: '4px'
-                    }}>
-                      WINNER
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ 
-                  padding: '0 20px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#888',
-                  textAlign: 'center'
-                }}>
-                  VS
-                </div>
-
-                <div style={{ 
-                  flex: 1, 
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: opponentTeam.almogScore > beitarTeam.almogScore 
-                    ? 'rgba(239, 68, 68, 0.1)'
-                    : 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px',
-                  border: opponentTeam.almogScore > beitarTeam.almogScore 
-                    ? '2px solid #ef4444' 
-                    : '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    color: opponentTeam.almogScore > beitarTeam.almogScore ? '#ef4444' : '#fff',
-                    marginBottom: '4px'
-                  }}>
-                    {selectedOpponent.toUpperCase()}
-                  </div>
-                  <div style={{ 
-                    fontSize: '20px', 
-                    fontWeight: '700', 
-                    color: opponentTeam.almogScore > beitarTeam.almogScore ? '#ef4444' : '#fff'
-                  }}>
-                    {opponentTeam.almogScore.toFixed(1)}
-                  </div>
-                  {opponentTeam.almogScore > beitarTeam.almogScore && (
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: '#22c55e', 
-                      fontWeight: '600',
-                      marginTop: '4px'
-                    }}>
-                      WINNER
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Metric Comparison Cards */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
-                gap: '15px',
-                marginBottom: '20px'
-              }}>
-                {/* Total Distance Card */}
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#AAA', 
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    marginBottom: '12px',
-                    textTransform: 'uppercase'
-                  }}>
-                    Distance
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: beitarTeam.totalDistance > opponentTeam.totalDistance 
-                        ? 'rgba(255, 215, 0, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: beitarTeam.totalDistance > opponentTeam.totalDistance 
-                        ? '1px solid rgba(255, 215, 0, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>BEITAR</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: beitarTeam.totalDistance > opponentTeam.totalDistance ? '#FFD700' : '#fff'
-                      }}>
-                        {formatDistance(beitarTeam.totalDistance)}
-                      </div>
-                      {beitarTeam.totalDistance > opponentTeam.totalDistance && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      color: '#888'
-                    }}>
-                      <div style={{ fontWeight: '600', color: '#FFD700', marginBottom: '1px', fontSize: '16px' }}>
-                        {formatDistance(Math.abs(beitarTeam.totalDistance - opponentTeam.totalDistance))}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#FFD700', fontWeight: '600' }}>
-                        {((Math.abs(beitarTeam.totalDistance - opponentTeam.totalDistance) / Math.min(beitarTeam.totalDistance, opponentTeam.totalDistance)) * 100).toFixed(1)}%
-                      </div>
-                      <div style={{ fontSize: '11px' }}>GAP</div>
-                    </div>
-                    
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: opponentTeam.totalDistance > beitarTeam.totalDistance 
-                        ? 'rgba(239, 68, 68, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: opponentTeam.totalDistance > beitarTeam.totalDistance 
-                        ? '1px solid rgba(239, 68, 68, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>{selectedOpponent.toUpperCase()}</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: opponentTeam.totalDistance > beitarTeam.totalDistance ? '#ef4444' : '#fff'
-                      }}>
-                        {formatDistance(opponentTeam.totalDistance)}
-                      </div>
-                      {opponentTeam.totalDistance > beitarTeam.totalDistance && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Intensity Card */}
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#AAA', 
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    marginBottom: '12px',
-                    textTransform: 'uppercase'
-                  }}>
-                    Intensity
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: beitarTeam.avgIntensity > opponentTeam.avgIntensity 
-                        ? 'rgba(255, 215, 0, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: beitarTeam.avgIntensity > opponentTeam.avgIntensity 
-                        ? '1px solid rgba(255, 215, 0, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>BEITAR</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: beitarTeam.avgIntensity > opponentTeam.avgIntensity ? '#FFD700' : '#fff'
-                      }}>
-                        {formatIntensity(beitarTeam.avgIntensity)}
-                      </div>
-                      {beitarTeam.avgIntensity > opponentTeam.avgIntensity && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      color: '#888'
-                    }}>
-                      <div style={{ fontWeight: '600', color: '#FFD700', marginBottom: '1px', fontSize: '16px' }}>
-                        {formatIntensity(Math.abs(beitarTeam.avgIntensity - opponentTeam.avgIntensity))}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#FFD700', fontWeight: '600' }}>
-                        {((Math.abs(beitarTeam.avgIntensity - opponentTeam.avgIntensity) / Math.min(beitarTeam.avgIntensity, opponentTeam.avgIntensity)) * 100).toFixed(1)}%
-                      </div>
-                      <div style={{ fontSize: '11px' }}>GAP</div>
-                    </div>
-                    
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: opponentTeam.avgIntensity > beitarTeam.avgIntensity 
-                        ? 'rgba(239, 68, 68, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: opponentTeam.avgIntensity > beitarTeam.avgIntensity 
-                        ? '1px solid rgba(239, 68, 68, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>{selectedOpponent.toUpperCase()}</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: opponentTeam.avgIntensity > beitarTeam.avgIntensity ? '#ef4444' : '#fff'
-                      }}>
-                        {formatIntensity(opponentTeam.avgIntensity)}
-                      </div>
-                      {opponentTeam.avgIntensity > beitarTeam.avgIntensity && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Speed Card */}
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#AAA', 
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    marginBottom: '12px',
-                    textTransform: 'uppercase'
-                  }}>
-                    Speed
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: beitarTeam.avgSpeed > opponentTeam.avgSpeed 
-                        ? 'rgba(255, 215, 0, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: beitarTeam.avgSpeed > opponentTeam.avgSpeed 
-                        ? '1px solid rgba(255, 215, 0, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>BEITAR</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: beitarTeam.avgSpeed > opponentTeam.avgSpeed ? '#FFD700' : '#fff'
-                      }}>
-                        {formatSpeed(beitarTeam.avgSpeed)}
-                      </div>
-                      {beitarTeam.avgSpeed > opponentTeam.avgSpeed && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      color: '#888'
-                    }}>
-                      <div style={{ fontWeight: '600', color: '#FFD700', marginBottom: '1px', fontSize: '16px' }}>
-                        {formatSpeed(Math.abs(beitarTeam.avgSpeed - opponentTeam.avgSpeed))}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#FFD700', fontWeight: '600' }}>
-                        {((Math.abs(beitarTeam.avgSpeed - opponentTeam.avgSpeed) / Math.min(beitarTeam.avgSpeed, opponentTeam.avgSpeed)) * 100).toFixed(1)}%
-                      </div>
-                      <div style={{ fontSize: '11px' }}>GAP</div>
-                    </div>
-                    
-                    <div style={{ 
-                      flex: 1, 
-                      textAlign: 'center',
-                      padding: '8px',
-                      background: opponentTeam.avgSpeed > beitarTeam.avgSpeed 
-                        ? 'rgba(239, 68, 68, 0.1)' 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: '6px',
-                      border: opponentTeam.avgSpeed > beitarTeam.avgSpeed 
-                        ? '1px solid rgba(239, 68, 68, 0.3)' 
-                        : '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '2px' }}>{selectedOpponent.toUpperCase()}</div>
-                      <div style={{ 
-                        fontSize: '22px', 
-                        fontWeight: '600',
-                        color: opponentTeam.avgSpeed > beitarTeam.avgSpeed ? '#ef4444' : '#fff'
-                      }}>
-                        {formatSpeed(opponentTeam.avgSpeed)}
-                      </div>
-                      {opponentTeam.avgSpeed > beitarTeam.avgSpeed && (
-                        <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginTop: '2px' }}>
-                          WINNER
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-          )}
-        </div>
 
       </div>
     </div>

@@ -51,10 +51,13 @@ export default function TopPlayersReport() {
   const [minMinutes, setMinMinutes] = useState(90) // Minimum 90 minutes played
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
   const [selectedPositions, setSelectedPositions] = useState<string[]>([])
+  const [selectedMatchdays, setSelectedMatchdays] = useState<string[]>([])
   const [availableTeams, setAvailableTeams] = useState<string[]>([])
   const [availablePositions, setAvailablePositions] = useState<string[]>([])
+  const [availableMatchdays, setAvailableMatchdays] = useState<string[]>([])
   const [showTeamDropdown, setShowTeamDropdown] = useState(false)
   const [showPositionDropdown, setShowPositionDropdown] = useState(false)
+  const [showMatchdayDropdown, setShowMatchdayDropdown] = useState(false)
   
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('almogScore')
@@ -73,6 +76,7 @@ export default function TopPlayersReport() {
       if (!target.closest('.multi-select-dropdown')) {
         setShowTeamDropdown(false)
         setShowPositionDropdown(false)
+        setShowMatchdayDropdown(false)
       }
     }
     
@@ -90,7 +94,7 @@ export default function TopPlayersReport() {
     if (playersData) {
       applyFilters()
     }
-  }, [playersData, minMinutes, selectedTeams, selectedPositions, sortColumn, sortDirection])
+  }, [playersData, minMinutes, selectedTeams, selectedPositions, selectedMatchdays, sortColumn, sortDirection])
 
   const loadAvailableSeasons = async () => {
     try {
@@ -200,12 +204,23 @@ export default function TopPlayersReport() {
         player.almogScore = (intensityScore * 0.4) + (speedScore * 0.3) + (distanceScore * 0.3)
       })
 
-      // Extract unique teams and positions for filters
+      // Extract unique teams, positions, and matchdays for filters
       const teams = Array.from(new Set(processedPlayers.map(p => p.team))).sort()
       const positions = Array.from(new Set(processedPlayers.map(p => p.position))).sort()
       
+      const matchdays = result.data.matchesList.map((match: any) => match.matchday).sort((a: string, b: string) => {
+        // Sort matchdays numerically if they are numbers
+        const numA = parseInt(a)
+        const numB = parseInt(b)
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB
+        }
+        return a.localeCompare(b)
+      })
+      
       setAvailableTeams(teams)
       setAvailablePositions(positions)
+      setAvailableMatchdays(matchdays)
 
       setPlayersData({
         season: selectedSeason,
@@ -223,8 +238,14 @@ export default function TopPlayersReport() {
     }
   }
 
-  const applyFilters = () => {
+  const applyFilters = async () => {
     if (!playersData) return
+    
+    // If matchdays are selected, we need to reload and recalculate data
+    if (selectedMatchdays.length > 0) {
+      await loadFilteredTopPlayers()
+      return
+    }
     
     let filtered = playersData.playersData.filter(player => {
       // Filter by minimum minutes
@@ -262,6 +283,178 @@ export default function TopPlayersReport() {
     })
     
     setFilteredPlayers(filtered)
+  }
+
+  const loadFilteredTopPlayers = async () => {
+    if (!playersData) return
+    
+    try {
+      // Get all reports for the season
+      const result = await CSVReportService.getAllReports()
+      
+      if (!result.success || !result.data) {
+        return
+      }
+
+      // Filter reports by season and selected matchdays
+      let filteredReports = result.data.filter(report => report.season === selectedSeason)
+      
+      if (selectedMatchdays.length > 0) {
+        filteredReports = filteredReports.filter(report => 
+          selectedMatchdays.includes(report.matchday_number.toString())
+        )
+      }
+
+      if (filteredReports.length === 0) {
+        setFilteredPlayers([])
+        return
+      }
+
+      // Aggregate player data from filtered reports
+      const playerAggregates: { [key: string]: any } = {}
+      
+      for (const report of filteredReports) {
+        const loadResult = await CSVReportService.loadCSVReport(
+          report.matchday_number,
+          report.opponent_team
+        )
+        
+        if (loadResult.success && loadResult.data) {
+          const players = loadResult.data.parsed_data.filter((p: any) => p.Position !== 'TEAM')
+          
+          players.forEach((player: any) => {
+            const key = `${player.Player}_${player.teamName || player.newestTeam || 'Unknown'}`
+            
+            if (!playerAggregates[key]) {
+              playerAggregates[key] = {
+                player: player.Player,
+                playerFullName: player.playerFullName || player.Player,
+                team: player.teamName || player.newestTeam || 'Unknown',
+                position: player.Position || player.pos || 'Unknown',
+                totalMinutes: 0,
+                totalMatches: 0,
+                totalDistance: 0,
+                totalFirstHalf: 0,
+                totalSecondHalf: 0,
+                totalHSRDistance: 0,
+                totalSprintDistance: 0,
+                maxSpeed: 0
+              }
+            }
+            
+            const minutes = player.MinIncET || player.Min || 0
+            const distance = (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
+            const hsrDistance = (player.FirstHalfDistHSRun || 0) + (player.ScndHalfDistHSRun || 0)
+            const sprintDistance = (player.FirstHalfDistSprint || 0) + (player.ScndHalfDistSprint || 0)
+            const speed = player.TopSpeed || (typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || 0))
+            
+            playerAggregates[key].totalMinutes += minutes
+            playerAggregates[key].totalMatches += 1
+            playerAggregates[key].totalDistance += distance
+            playerAggregates[key].totalFirstHalf += player.DistanceRunFirstHalf || 0
+            playerAggregates[key].totalSecondHalf += player.DistanceRunScndHalf || 0
+            playerAggregates[key].totalHSRDistance += hsrDistance
+            playerAggregates[key].totalSprintDistance += sprintDistance
+            playerAggregates[key].maxSpeed = Math.max(playerAggregates[key].maxSpeed, speed)
+          })
+        }
+      }
+
+      // Process aggregated data
+      const processedPlayers: PlayerAggregateData[] = Object.values(playerAggregates).map((aggregate: any) => {
+        const avgMinutesPerMatch = aggregate.totalMatches > 0 ? aggregate.totalMinutes / aggregate.totalMatches : 0
+        const avgDistancePerMatch = aggregate.totalMatches > 0 ? aggregate.totalDistance / aggregate.totalMatches : 0
+        
+        // 90-minute normalization
+        const normalizedDistance = avgMinutesPerMatch > 0 ? (avgDistancePerMatch / avgMinutesPerMatch) * 90 : 0
+        
+        // Intensity calculation
+        const intensity = avgDistancePerMatch > 0 ? ((aggregate.totalHSRDistance / aggregate.totalMatches + aggregate.totalSprintDistance / aggregate.totalMatches) / avgDistancePerMatch * 100) : 0
+        
+        return {
+          player: aggregate.player,
+          playerFullName: aggregate.playerFullName,
+          team: aggregate.team,
+          position: aggregate.position,
+          totalMinutes: aggregate.totalMinutes,
+          totalMatches: aggregate.totalMatches,
+          totalDistance: aggregate.totalDistance,
+          totalFirstHalf: aggregate.totalFirstHalf,
+          totalSecondHalf: aggregate.totalSecondHalf,
+          totalHSRDistance: aggregate.totalHSRDistance,
+          totalSprintDistance: aggregate.totalSprintDistance,
+          normalizedDistance,
+          intensity,
+          averageSpeed: aggregate.maxSpeed,
+          almogScore: 0
+        }
+      })
+
+      // Calculate ALMOG scores
+      const distances = processedPlayers.map(p => p.normalizedDistance).filter(d => d > 0)
+      const intensities = processedPlayers.map(p => p.intensity).filter(i => i > 0)
+      const speeds = processedPlayers.map(p => p.averageSpeed).filter(s => s > 0)
+      
+      if (distances.length > 0 && intensities.length > 0 && speeds.length > 0) {
+        const minDistance = Math.min(...distances)
+        const maxDistance = Math.max(...distances)
+        const minIntensity = Math.min(...intensities)
+        const maxIntensity = Math.max(...intensities)
+        const minSpeed = Math.min(...speeds)
+        const maxSpeed = Math.max(...speeds)
+
+        processedPlayers.forEach(player => {
+          const distanceScore = maxDistance > minDistance ? 
+            ((player.normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100 : 50
+          const intensityScore = maxIntensity > minIntensity ? 
+            ((player.intensity - minIntensity) / (maxIntensity - minIntensity)) * 100 : 50
+          const speedScore = maxSpeed > minSpeed ? 
+            ((player.averageSpeed - minSpeed) / (maxSpeed - minSpeed)) * 100 : 50
+          
+          player.almogScore = (intensityScore * 0.4) + (speedScore * 0.3) + (distanceScore * 0.3)
+        })
+      }
+
+      // Apply other filters
+      let filtered = processedPlayers.filter(player => {
+        // Filter by minimum minutes
+        if (player.totalMinutes < minMinutes) return false
+        
+        // Filter by teams (multiple selection)
+        if (selectedTeams.length > 0 && !selectedTeams.includes(player.team)) return false
+        
+        // Filter by positions (multiple selection)
+        if (selectedPositions.length > 0 && !selectedPositions.includes(player.position)) return false
+        
+        return true
+      })
+
+      // Apply sorting
+      filtered.sort((a, b) => {
+        let aValue: any = a[sortColumn as keyof PlayerAggregateData]
+        let bValue: any = b[sortColumn as keyof PlayerAggregateData]
+        
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          aValue = aValue.toLowerCase()
+          bValue = bValue.toLowerCase()
+        }
+        
+        if (sortDirection === 'asc') {
+          if (aValue < bValue) return -1
+          if (aValue > bValue) return 1
+          return 0
+        } else {
+          if (aValue > bValue) return -1
+          if (aValue < bValue) return 1
+          return 0
+        }
+      })
+      
+      setFilteredPlayers(filtered)
+
+    } catch (error) {
+      console.error('Error loading filtered players:', error)
+    }
   }
 
   const handleSort = (column: string) => {
@@ -618,6 +811,88 @@ export default function TopPlayersReport() {
                         style={{ marginRight: '6px' }}
                       />
                       {position}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div style={{ position: 'relative' }} className="multi-select-dropdown">
+            <label style={{ color: 'var(--secondary-text)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+              Matchday
+            </label>
+            <div
+              onClick={() => setShowMatchdayDropdown(!showMatchdayDropdown)}
+              style={{
+                padding: '6px 8px',
+                borderRadius: '4px',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: '#fff',
+                fontSize: '14px',
+                minWidth: '120px',
+                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <span>{selectedMatchdays.length === 0 ? 'All Matchdays' : `${selectedMatchdays.length} selected`}</span>
+              <span style={{ fontSize: '10px' }}>▼</span>
+            </div>
+            {showMatchdayDropdown && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                minWidth: '180px',
+                background: '#1a1a1a',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                borderRadius: '4px',
+                marginTop: '4px',
+                maxHeight: '250px',
+                overflowY: 'auto',
+                zIndex: 9999,
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
+              }}>
+                <div
+                  style={{
+                    padding: '6px 8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    background: selectedMatchdays.length === 0 ? 'rgba(255, 215, 0, 0.1)' : 'transparent'
+                  }}
+                  onClick={() => setSelectedMatchdays([])}
+                >
+                  <label style={{ cursor: 'pointer', display: 'block', color: '#fff', fontSize: '13px' }}>
+                    All Matchdays
+                  </label>
+                </div>
+                {availableMatchdays.map(matchday => (
+                  <div
+                    key={matchday}
+                    style={{
+                      padding: '6px 8px',
+                      cursor: 'pointer',
+                      background: selectedMatchdays.includes(matchday) ? 'rgba(255, 215, 0, 0.1)' : 'transparent'
+                    }}
+                    onClick={() => {
+                      if (selectedMatchdays.includes(matchday)) {
+                        setSelectedMatchdays(selectedMatchdays.filter(m => m !== matchday))
+                      } else {
+                        setSelectedMatchdays([...selectedMatchdays, matchday])
+                      }
+                    }}
+                  >
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#fff', fontSize: '13px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedMatchdays.includes(matchday)}
+                        onChange={() => {}}
+                        style={{ marginRight: '6px' }}
+                      />
+                      Matchday {matchday}
                     </label>
                   </div>
                 ))}

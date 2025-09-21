@@ -6992,8 +6992,8 @@ input[type="file"] {
 }
 
 .developer-nav {
-  background: var(--developer-bg);
-  border: 1px solid var(--developer-border);
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px solid rgba(255, 215, 0, 0.1);
   border-radius: var(--border-radius);
   padding: 1rem;
   margin-bottom: 2rem;
@@ -7006,7 +7006,7 @@ input[type="file"] {
   top: -12px;
   left: 20px;
   background: var(--primary-bg);
-  color: var(--developer-accent);
+  color: var(--primary-text);
   padding: 0 10px;
   font-size: 12px;
   font-weight: 600;
@@ -7014,19 +7014,19 @@ input[type="file"] {
 }
 
 .developer-nav .section-button {
-  border: 1px solid var(--developer-border);
-  background: rgba(255, 71, 87, 0.05);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  background: rgba(255, 215, 0, 0.05);
 }
 
 .developer-nav .section-button:hover {
-  background: rgba(255, 71, 87, 0.1);
-  border-color: var(--developer-accent);
+  background: rgba(255, 215, 0, 0.1);
+  border-color: var(--primary-text);
 }
 
 .developer-nav .section-button.active {
-  background: var(--developer-accent);
-  color: white;
-  border-color: var(--developer-accent);
+  background: var(--primary-text);
+  color: black;
+  border-color: var(--primary-text);
 }
 
 /* Navbar Layout Updates */
@@ -7065,26 +7065,26 @@ input[type="file"] {
 }
 
 .developer-access-btn.developer-locked {
-  background: rgba(255, 71, 87, 0.1);
-  border: 1px solid rgba(255, 71, 87, 0.2);
-  color: var(--developer-accent);
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  color: var(--primary-text);
 }
 
 .developer-access-btn.developer-locked:hover {
-  background: rgba(255, 71, 87, 0.15);
+  background: rgba(255, 215, 0, 0.15);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 71, 87, 0.2);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
 }
 
 .developer-access-btn.developer-unlocked {
-  background: linear-gradient(135deg, var(--developer-accent), #ff3838);
-  color: white;
+  background: linear-gradient(135deg, var(--primary-text), #ccaa00);
+  color: black;
   border: none;
-  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
 }
 
 .developer-access-btn.developer-unlocked:hover {
-  background: linear-gradient(135deg, #ff3838, var(--developer-accent));
+  background: linear-gradient(135deg, #ccaa00, var(--primary-text));
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(255, 71, 87, 0.4);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
 }

@@ -1,5 +1,5 @@
 /**
- * Enhanced image export utilities for WhatsApp compatibility
+ * Enhanced image and PDF export utilities for WhatsApp compatibility
  */
 
 /**
@@ -11,9 +11,9 @@
 export async function canvasToWhatsAppBlob(canvas, options = {}) {
   const {
     backgroundColor = '#0b0b0f',
-    maxWidth = 1920,
-    minWidth = 1440,
-    quality = 0.95,
+    maxWidth = 2560,  // Increased from 1920 for higher resolution
+    minWidth = 1920,  // Increased from 1440 for higher base resolution  
+    quality = 1.0,    // Maximum quality
     format = 'png'
   } = options;
 
@@ -77,7 +77,7 @@ export async function exportElementForWhatsApp(element, options = {}) {
     dualFormat = true,
     captureWidth = null,
     maintainAspectRatio = true,
-    scale = 2
+    scale = 3  // Increased from 2 to 3 for higher quality
   } = options;
 
   try {
@@ -149,6 +149,7 @@ export async function exportElementForWhatsApp(element, options = {}) {
       jpeg: jpegUrl,
       pngBlob: pngResult,
       jpegBlob: jpegResult,
+      canvas: canvas,
       metadata: {
         width: canvas.width,
         height: canvas.height,

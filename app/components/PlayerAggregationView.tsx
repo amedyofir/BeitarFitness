@@ -8,7 +8,7 @@ import { PlayerSeasonAggregation } from '../../types/rawMatchdayReport'
 export default function PlayerAggregationView() {
   const [players, setPlayers] = useState<PlayerSeasonAggregation[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedSeason, setSelectedSeason] = useState('2024-2025')
+  const [selectedSeason, setSelectedSeason] = useState('2025-2026')
   const [selectedTeam, setSelectedTeam] = useState('all')
   const [sortBy, setSortBy] = useState<keyof PlayerSeasonAggregation>('avg_total_distance')
 
@@ -278,7 +278,7 @@ export default function PlayerAggregationView() {
         <div className="control-group">
           <label className="control-label">Season</label>
           <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)}>
-            <option value="2024-2025">2024-2025</option>
+            <option value="2025-2026">2025-2026</option>
             <option value="2023-2024">2023-2024</option>
           </select>
         </div>

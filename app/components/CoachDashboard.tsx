@@ -31,27 +31,36 @@ export default function CoachDashboard() {
   }, [activeCoachTab])
 
   const loadAvailableMatches = async () => {
+    console.log('🔍 Loading available matches...')
     try {
+      console.log('📊 Fetching team match metadata...')
       const matches = await fetchTeamMatchMetadata()
+      console.log('✅ Team matches found:', matches)
       setAvailableMatches(matches.sort((a, b) => b.matchweek - a.matchweek)) // Sort by most recent first
       
       // Check if aggregated data exists
+      console.log('🔍 Checking for aggregated data...')
       const hasAggregatedData = await checkAggregatedDataExists()
+      console.log('✅ Aggregated data exists:', hasAggregatedData)
       setAggregatedDataExists(hasAggregatedData)
       
       // Auto-select the most recent match or aggregated data if available
       if (!selectedMatchweek) {
         if (hasAggregatedData) {
+          console.log('🏆 Auto-selecting uploaded aggregated data')
           setSelectedMatchweek('uploaded-aggregated')
           loadUploadedAggregatedData()
         } else if (matches.length > 0) {
           const mostRecent = Math.max(...matches.map(m => m.matchweek))
+          console.log('📈 Auto-selecting most recent match:', mostRecent)
           setSelectedMatchweek(mostRecent)
           loadMatchData(mostRecent)
+        } else {
+          console.log('⚠️ No matches or aggregated data found')
         }
       }
     } catch (error) {
-      console.error('Error loading available matches:', error)
+      console.error('❌ Error loading available matches:', error)
     }
   }
 
@@ -103,21 +112,37 @@ export default function CoachDashboard() {
           agg.matchdays_count += 1
           agg.source_matchweeks.push(team.source_matchweek)
           
-          // Aggregate numeric fields
-          const numericFields = [
-            'goals_scored', 'expected_assists', 'expected_goals_per_shot', 'expected_goals',
-            'ground_duels', 'dribbles_successful', 'start_a3_end_box', 'start_a2_end_box',
+          // Aggregate numeric fields - SUM totals for most fields, AVERAGE for percentages
+          const sumFields = [
+            'goals_scored', 'expected_assists', 'expected_goals', 'ground_duels', 
+            'dribbles_successful', 'start_a3_end_box', 'start_a2_end_box',
             'pass_completed_to_box', 'end_box_using_corner', 'start_a2_end_a3',
             'start_a1_end_box', 'start_a2_end_a3_alt', 'start_a1_end_a3', 'start_a1_end_a2',
-            'seq_start_att_3rd', 'seq_start_mid_3rd', 'seq_start_a1', 'aerial_percentage',
-            'ground_percentage', 'cross_open', 'pass_from_assist_to_golden', 'pass_assist_zone',
-            'shots_on_goal_penalty_area', 'shots_on_goal_from_box', 'shot_from_golden',
-            'shot_from_box', 'shots_on_goal', 'shots_including_blocked', 'actual_goals',
-            'touches', 'touch_opponent_box', 'drop_forward_up_percentage',
-            'possession_won_opponent_half', 'avg_sequence_time', 'ppda_40'
+            'seq_start_att_3rd', 'seq_start_mid_3rd', 'seq_start_a1', 'cross_open', 
+            'pass_from_assist_to_golden', 'pass_assist_zone', 'shots_on_goal_penalty_area', 
+            'shots_on_goal_from_box', 'shot_from_golden', 'shot_from_box', 'shots_on_goal', 
+            'shots_including_blocked', 'actual_goals', 'touches', 'touch_opponent_box',
+            'possession_won_opponent_half'
           ]
           
-          numericFields.forEach(field => {
+          const averageFields = [
+            'expected_goals_per_shot', 'aerial_percentage', 'ground_percentage', 
+            'drop_forward_up_percentage', 'avg_sequence_time', 'ppda_40'
+          ]
+          
+          // Sum the fields that should be totaled
+          sumFields.forEach(field => {
+            if (team[field] !== null && team[field] !== undefined && !isNaN(parseFloat(team[field]))) {
+              if (agg.matchdays_count === 1) {
+                agg[field] = parseFloat(team[field])
+              } else {
+                agg[field] = (agg[field] || 0) + parseFloat(team[field])
+              }
+            }
+          })
+          
+          // Average the fields that should be averaged (percentages, rates)
+          averageFields.forEach(field => {
             if (team[field] !== null && team[field] !== undefined && !isNaN(parseFloat(team[field]))) {
               if (agg.matchdays_count === 1) {
                 agg[field] = parseFloat(team[field])
@@ -141,12 +166,14 @@ export default function CoachDashboard() {
   }
 
   const loadUploadedAggregatedData = async () => {
+    console.log('🏆 Loading uploaded aggregated data...')
     setLoadingMatchStats(true)
     try {
       const data = await fetchAggregatedTeamStatistics()
+      console.log('✅ Uploaded aggregated data:', data)
       setMatchStatsData(data)
     } catch (error) {
-      console.error('Error loading uploaded aggregated data:', error)
+      console.error('❌ Error loading uploaded aggregated data:', error)
       setMatchStatsData([])
     }
     setLoadingMatchStats(false)

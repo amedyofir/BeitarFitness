@@ -71,13 +71,70 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
     // Fetch existing matchweeks on component mount
     const loadExistingMatchweeks = async () => {
       try {
-        // Try to fetch both player GPS and team statistics matchweeks
-        const gpsMatchweeks = await fetchAvailableMatchweeks().catch(() => [])
+        // Try to fetch both player GPS and team statistics matchweeks for all season formats
+        const gpsMatchweeks2025 = await fetchAvailableMatchweeks('2025-2026').catch((error) => {
+          console.warn('GPS 2025-2026 fetch failed:', error.message)
+          return []
+        })
+        const gpsMatchweeks2024 = await fetchAvailableMatchweeks('2024-2025').catch((error) => {
+          console.warn('GPS 2024-2025 fetch failed:', error.message)
+          return []
+        })
+        const gpsMatchweeks2024Alt = await fetchAvailableMatchweeks('2024/25').catch((error) => {
+          console.warn('GPS 2024/25 fetch failed:', error.message)
+          return []
+        })
         const { fetchTeamMatchMetadata } = await import('@/lib/teamMatchService')
-        const teamMatchweeks = await fetchTeamMatchMetadata().catch(() => [])
+        const teamMatchweeks2025 = await fetchTeamMatchMetadata('2025-2026').catch((error) => {
+          console.warn('Team 2025-2026 fetch failed:', error.message)
+          return []
+        })
+        const teamMatchweeks2024 = await fetchTeamMatchMetadata('2024-2025').catch((error) => {
+          console.warn('Team 2024-2025 fetch failed:', error.message)
+          return []
+        })
+        const teamMatchweeks2024Alt = await fetchTeamMatchMetadata('2024/25').catch((error) => {
+          console.warn('Team 2024/25 fetch failed:', error.message)
+          return []
+        })
+        
+        console.log('GPS 2025-2026:', gpsMatchweeks2025)
+        console.log('GPS 2024-2025:', gpsMatchweeks2024)
+        console.log('GPS 2024/25:', gpsMatchweeks2024Alt)
+        console.log('Team 2025-2026:', teamMatchweeks2025)
+        console.log('Team 2024-2025:', teamMatchweeks2024)
+        console.log('Team 2024/25:', teamMatchweeks2024Alt)
+        
+        // Also try to load from CSV reports (which is where your data is likely stored)
+        const { CSVReportService } = await import('@/lib/csvReportService')
+        const csvReports = await CSVReportService.getAllReports().catch((error) => {
+          console.warn('CSV reports fetch failed:', error.message)
+          return { success: false, data: [] }
+        })
+        
+        let csvMatchweeks: any[] = []
+        if (csvReports.success && csvReports.data) {
+          csvMatchweeks = csvReports.data.map((report: any) => ({
+            matchweek: parseInt(report.matchday_number),
+            match_date: report.match_date,
+            opponent: report.opponent_team,
+            match_type: 'home', // Default since CSV reports don't specify
+            season: report.season
+          }))
+          console.log('CSV Reports as Matchweeks:', csvMatchweeks)
+        }
+        
+        const gpsMatchweeks = [...gpsMatchweeks2025, ...gpsMatchweeks2024]
+        const teamMatchweeks = [...teamMatchweeks2025, ...teamMatchweeks2024]
+        
+        // Debug: Log the fetched data
+        console.log('GPS Matchweeks:', gpsMatchweeks)
+        console.log('Team Matchweeks:', teamMatchweeks)
         
         // Combine and deduplicate by matchweek, filter out aggregated data (matchweek 999)
-        const allMatchweeks = [...gpsMatchweeks, ...teamMatchweeks]
+        const allMatchweeks = [...gpsMatchweeks, ...teamMatchweeks, ...csvMatchweeks]
+        console.log('All Matchweeks before dedup:', allMatchweeks)
+        
         const uniqueMatchweeks = allMatchweeks.reduce((acc, current) => {
           const existing = acc.find(item => item.matchweek === current.matchweek)
           if (!existing && current.matchweek !== 999) { // Exclude aggregated data from regular listings
@@ -86,6 +143,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
           return acc
         }, [])
         
+        console.log('Unique Matchweeks after dedup:', uniqueMatchweeks)
         setExistingMatchweeks(uniqueMatchweeks)
 
         // Check if uploaded aggregated data exists
@@ -201,7 +259,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
         // Handle aggregated team statistics data
         const teamData: TeamMatchStatistics[] = csvData.map((row: any) => ({
           ...row,
-          season: '2024/25'
+          season: '2025-2026'
         }))
 
         // Save aggregated data to Supabase
@@ -216,7 +274,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
           ...row,
           matchweek: matchday,
           match_date: generatedMatchDate,
-          season: '2024/25'
+          season: '2025-2026'
         }))
 
         // Prepare team metadata
@@ -226,7 +284,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
           competition: 'Ligat Ha\'al',
           league_name: 'Ligat Ha\'al (Israel)',
           csv_filename: csvFile?.name || '',
-          season: '2024/25',
+          season: '2025-2026',
           teams_count: teamData.length
         }
 
@@ -261,7 +319,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
           dynamic_stress_load: parseFloat(row['DSL'] || row['dynamic_stress_load'] || 0),
           total_loading: parseFloat(row['Total Loading'] || row['total_loading'] || 0),
           fatigue_index: parseFloat(row['Fatigue Index'] || row['fatigue_index'] || 0),
-          season: '2024/25'
+          season: '2025-2026'
         }))
 
         // Prepare player metadata
@@ -271,7 +329,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
           opponent: opponent,
           match_type: matchType,
           csv_filename: csvFile?.name || '',
-          season: '2024/25'
+          season: '2025-2026'
         }
 
         // Save player GPS data to Supabase
@@ -1123,7 +1181,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
                       Upload Type: Season Summary (Aggregated)<br />
                       CSV File: {csvFile?.name}<br />
                       Data Points: {csvData.length} teams<br />
-                      Season: 2024/25<br />
+                      Season: 2025-2026<br />
                       Action: Will overwrite existing season summary
                     </>
                   ) : (

@@ -21,8 +21,8 @@ export default function TeamAverageReport() {
   const [averageData, setAverageData] = useState<TeamAverageData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [selectedSeason, setSelectedSeason] = useState('2024-2025')
-  const [availableSeasons, setAvailableSeasons] = useState<string[]>(['2024-2025'])
+  const [selectedSeason, setSelectedSeason] = useState('2025-2026')
+  const [availableSeasons, setAvailableSeasons] = useState<string[]>(['2025-2026'])
   const exportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

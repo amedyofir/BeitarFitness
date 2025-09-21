@@ -414,6 +414,7 @@ export const saveAggregatedTeamStatistics = async (data: TeamMatchStatistics[], 
 // Fetch aggregated team statistics
 export const fetchAggregatedTeamStatistics = async (season: string = '2025-2026') => {
   try {
+    console.log(`🔍 Fetching aggregated statistics for season: ${season}`)
     const AGGREGATED_MATCHWEEK = 999
     const { data, error } = await supabase
       .from('team_match_statistics')
@@ -421,6 +422,8 @@ export const fetchAggregatedTeamStatistics = async (season: string = '2025-2026'
       .eq('matchweek', AGGREGATED_MATCHWEEK)
       .eq('season', season)
       .order('team_rank')
+
+    console.log(`✅ Aggregated statistics query result:`, data)
 
     if (error) {
       console.error('Error fetching aggregated team statistics:', error)
@@ -437,20 +440,48 @@ export const fetchAggregatedTeamStatistics = async (season: string = '2025-2026'
 // Check if aggregated data exists
 export const checkAggregatedDataExists = async (season: string = '2025-2026') => {
   try {
+    console.log(`🔍 Checking aggregated data for season: ${season}`)
     const AGGREGATED_MATCHWEEK = 999
-    const { data, error } = await supabase
+    
+    // Check if both metadata AND actual statistics data exist
+    const { data: metaData, error: metaError } = await supabase
       .from('team_match_metadata')
-      .select('matchweek')
+      .select('matchweek, season')
       .eq('matchweek', AGGREGATED_MATCHWEEK)
       .eq('season', season)
       .single()
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
-      console.error('Error checking aggregated data existence:', error)
-      throw error
+    console.log(`✅ Aggregated metadata query result:`, metaData)
+
+    if (metaError && metaError.code !== 'PGRST116') {
+      console.error('Error checking aggregated metadata existence:', metaError)
+      throw metaError
     }
 
-    return !!data
+    if (!metaData) {
+      console.log(`❌ No aggregated metadata found`)
+      return false
+    }
+
+    // Also check if actual statistics data exists
+    const { data: statsData, error: statsError } = await supabase
+      .from('team_match_statistics')
+      .select('matchweek')
+      .eq('matchweek', AGGREGATED_MATCHWEEK)
+      .eq('season', season)
+      .limit(1)
+
+    console.log(`✅ Aggregated statistics check result:`, statsData)
+
+    if (statsError) {
+      console.error('Error checking aggregated statistics existence:', statsError)
+      throw statsError
+    }
+
+    const hasStats = statsData && statsData.length > 0
+    console.log(`🔍 Has actual aggregated statistics: ${hasStats}`)
+    
+    return hasStats
   } catch (error) {
     console.error('Error in checkAggregatedDataExists:', error)
     return false

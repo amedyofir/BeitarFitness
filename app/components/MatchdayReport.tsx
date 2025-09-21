@@ -1,15 +1,17 @@
 'use client'
 
 import React from 'react'
-import { Shield, Download } from 'lucide-react'
+import { Shield, Download, FileText } from 'lucide-react'
 import { exportElementForWhatsApp, downloadImage, validateImageForWhatsApp } from '../../utils/whatsappExport'
 
 interface MatchdayReportProps {
   csvData: any[]
   matchdayNumber: string
+  isOpponentAnalysis?: boolean
+  selectedOpponent?: string
 }
 
-export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayReportProps) {
+export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnalysis = false, selectedOpponent }: MatchdayReportProps) {
   if (!csvData || csvData.length === 0) {
     return (
       <div style={{ padding: '20px', color: '#fff' }}>
@@ -71,6 +73,95 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
     }
   }
 
+  const downloadPDF = async () => {
+    const reportElement = document.getElementById('matchday-report-full')
+    if (!reportElement) return
+
+    try {
+      console.log('Starting PDF export...')
+      
+      // Dynamic import of jsPDF and html2canvas
+      const { jsPDF } = await import('jspdf')
+      const html2canvas = (await import('html2canvas')).default
+      
+      // Capture the element as canvas with high quality
+      const canvas = await html2canvas(reportElement, {
+        backgroundColor: '#0b0b0f',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        removeContainer: true,
+        imageTimeout: 15000,
+        logging: false
+      })
+      
+      // Calculate dimensions
+      const canvasWidth = canvas.width
+      const canvasHeight = canvas.height
+      const aspectRatio = canvasWidth / canvasHeight
+      
+      // PDF page dimensions (A4 landscape)
+      const pageWidth = 297 // A4 landscape width in mm
+      const pageHeight = 210 // A4 landscape height in mm
+      
+      // Calculate optimal image size to fit page with margins
+      const margin = 10
+      const maxWidth = pageWidth - (margin * 2)
+      const maxHeight = pageHeight - (margin * 2)
+      
+      let imgWidth, imgHeight
+      
+      if (aspectRatio > (maxWidth / maxHeight)) {
+        // Image is wider - constrain by width
+        imgWidth = maxWidth
+        imgHeight = maxWidth / aspectRatio
+      } else {
+        // Image is taller - constrain by height
+        imgHeight = maxHeight
+        imgWidth = maxHeight * aspectRatio
+      }
+      
+      // Center the image on the page
+      const x = (pageWidth - imgWidth) / 2
+      const y = (pageHeight - imgHeight) / 2
+      
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      })
+      
+      // Add metadata
+      pdf.setProperties({
+        title: `Matchday ${matchdayNumber} Report`,
+        subject: 'Beitar Jerusalem FC - Data Analysis Report',
+        author: 'FCBJ Data Platform',
+        creator: 'Claude Code'
+      })
+      
+      // Convert canvas to image data
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      
+      // Add image to PDF
+      pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight)
+      
+      // Save PDF
+      const filename = `Matchday_${matchdayNumber}_Report.pdf`
+      pdf.save(filename)
+      
+      console.log('PDF export completed:', {
+        filename,
+        dimensions: `${imgWidth.toFixed(1)}x${imgHeight.toFixed(1)}mm`,
+        pageSize: `${pageWidth}x${pageHeight}mm`
+      })
+      
+    } catch (error) {
+      console.error('PDF export failed:', error)
+      alert('PDF export failed. Please try again.')
+    }
+  }
+
   // Find Beitar in the data - check multiple possible field names
   const beitarData = csvData.find(team => 
     team.teamFullName?.toLowerCase().includes('beitar') || 
@@ -84,6 +175,27 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
   const getTeamName = (team: any) => team.Team || team.team_full_name || team.teamFullName || 'Unknown'
   const getTeamRank = (team: any) => team.Rank || team.team_rank || 0
   const isBeitar = (team: any) => getTeamName(team).toLowerCase().includes('beitar')
+  
+  // Function to determine if a team should be highlighted
+  const shouldHighlightTeam = (team: any) => {
+    if (isOpponentAnalysis && selectedOpponent) {
+      // In opponent analysis, highlight only the selected opponent team
+      const teamName = getTeamName(team)
+      const isSelectedOpponent = teamName.toLowerCase().includes(selectedOpponent.toLowerCase()) ||
+                                selectedOpponent.toLowerCase().includes(teamName.toLowerCase())
+      console.log(`🎯 Opponent Analysis: Team ${teamName} - Selected opponent: ${selectedOpponent} - Match: ${isSelectedOpponent}`)
+      return isSelectedOpponent
+    } else if (isOpponentAnalysis) {
+      // Fallback: highlight all teams if no specific opponent selected
+      console.log(`🎯 Opponent Analysis: Highlighting all teams (no specific opponent)`)
+      return true
+    } else {
+      // In regular analysis, highlight only Beitar Jerusalem
+      const isBeitarTeam = isBeitar(team)
+      console.log(`⚽ Regular Analysis: Team ${getTeamName(team)} - Beitar: ${isBeitarTeam}`)
+      return isBeitarTeam
+    }
+  }
   
   // Field mapping for both formats
   const getField = (team: any, field: string) => {
@@ -409,24 +521,53 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
 
   return (
     <div style={{ position: 'relative', width: '100%', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: '#0b0b0f' }}>
-      {/* Download Button */}
-      <button
-        onClick={downloadReport}
-        style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          zIndex: 1000,
-          background: 'rgba(255, 215, 0, 0.9)',
-          borderRadius: '8px',
-          padding: '8px',
-          cursor: 'pointer',
-          border: 'none',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-        }}
-      >
-        <Download size={20} color="#000" />
-      </button>
+      {/* Download Buttons */}
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+        zIndex: 1000,
+        display: 'flex',
+        gap: '8px'
+      }}>
+        {/* PNG Download Button */}
+        <button
+          onClick={downloadReport}
+          style={{
+            background: 'rgba(255, 215, 0, 0.9)',
+            borderRadius: '8px',
+            padding: '8px',
+            cursor: 'pointer',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+          title="Download as PNG"
+        >
+          <Download size={20} color="#000" />
+        </button>
+        
+        {/* PDF Download Button */}
+        <button
+          onClick={downloadPDF}
+          style={{
+            background: 'rgba(239, 68, 68, 0.9)',
+            borderRadius: '8px',
+            padding: '8px',
+            cursor: 'pointer',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+          title="Download as PDF"
+        >
+          <FileText size={20} color="#fff" />
+        </button>
+      </div>
 
       <div id="matchday-report-full" style={{
         background: '#0b0b0f',
@@ -514,21 +655,21 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
               </thead>
               <tbody>
                 {teamsWithPressScores.map((team, index) => {
-                  const isBeitarTeam = isBeitar(team)
+                  const teamShouldHighlight = shouldHighlightTeam(team)
                   
                   return (
                     <tr key={team.teamId} style={{ 
                       borderBottom: '1px solid #222',
-                      background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                      background: teamShouldHighlight ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                     }}>
                       <td style={{ 
                         padding: '8px 12px', 
-                        color: isBeitarTeam ? '#FFD700' : '#fff',
+                        color: teamShouldHighlight ? '#FFD700' : '#fff',
                         fontWeight: '600'
                       }}>
                         {index + 1}
                       </td>
-                      <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                      <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
                         {getTeamName(team)}
                       </td>
                       <td style={{ 
@@ -624,21 +765,21 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithDuelsScores.map((team, index) => {
-                const isBeitarTeam = isBeitar(team)
+                const teamShouldHighlight = shouldHighlightTeam(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: teamShouldHighlight ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitarTeam ? '#FFD700' : '#fff',
+                      color: teamShouldHighlight ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
                       {getTeamName(team)}
                     </td>
                     <td style={{ 
@@ -726,21 +867,21 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithAssistZoneScores.map((team, index) => {
-                const isBeitarTeam = isBeitar(team)
+                const teamShouldHighlight = shouldHighlightTeam(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: teamShouldHighlight ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitarTeam ? '#FFD700' : '#fff',
+                      color: teamShouldHighlight ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
                       {getTeamName(team)}
                     </td>
                     <td style={{ 
@@ -836,21 +977,21 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithShotLocationScores.map((team, index) => {
-                const isBeitarTeam = isBeitar(team)
+                const teamShouldHighlight = shouldHighlightTeam(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: teamShouldHighlight ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitarTeam ? '#FFD700' : '#fff',
+                      color: teamShouldHighlight ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
                       {getTeamName(team)}
                     </td>
                     <td style={{ 
@@ -947,21 +1088,21 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
             </thead>
             <tbody>
               {teamsWithShotQualityScores.map((team, index) => {
-                const isBeitarTeam = isBeitar(team)
+                const teamShouldHighlight = shouldHighlightTeam(team)
                 
                 return (
                   <tr key={team.teamId} style={{ 
                     borderBottom: '1px solid #222',
-                    background: isBeitarTeam ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
+                    background: teamShouldHighlight ? 'rgba(255, 215, 0, 0.08)' : 'transparent'
                   }}>
                     <td style={{ 
                       padding: '6px 8px', 
-                      color: isBeitarTeam ? '#FFD700' : '#fff',
+                      color: teamShouldHighlight ? '#FFD700' : '#fff',
                       fontWeight: '600'
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: isBeitarTeam ? '#FFD700' : '#fff', fontWeight: isBeitarTeam ? '600' : '400' }}>
+                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
                       {getTeamName(team)}
                     </td>
                     <td style={{ 
@@ -1069,14 +1210,14 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                     }).sort((a, b) => b.a1a2Percentage - a.a1a2Percentage)
 
                     return teamsWithA1A2.map((team, index) => {
-                      const isBeitarTeam = isBeitar(team)
+                      const teamShouldHighlight = shouldHighlightTeam(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -1084,8 +1225,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
@@ -1094,7 +1235,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
+                            color: teamShouldHighlight ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>
@@ -1126,14 +1267,14 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                     }).sort((a, b) => b.a2a3Percentage - a.a2a3Percentage)
 
                     return teamsWithA2A3.map((team, index) => {
-                      const isBeitarTeam = isBeitar(team)
+                      const teamShouldHighlight = shouldHighlightTeam(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -1141,8 +1282,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
@@ -1151,7 +1292,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
+                            color: teamShouldHighlight ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>
@@ -1185,14 +1326,14 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                     }).sort((a, b) => b.a3BoxPercentage - a.a3BoxPercentage)
 
                     return teamsWithA3Box.map((team, index) => {
-                      const isBeitarTeam = isBeitar(team)
+                      const teamShouldHighlight = shouldHighlightTeam(team)
                       
                       return (
                         <tr key={team.teamId} style={{ borderBottom: '1px solid #222' }}>
                           <td style={{ 
                             padding: '4px 8px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '20px'
                           }}>
@@ -1200,8 +1341,8 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           </td>
                           <td style={{ 
                             padding: '4px', 
-                            color: isBeitarTeam ? '#FFD700' : '#fff',
-                            fontWeight: isBeitarTeam ? '600' : '400',
+                            color: teamShouldHighlight ? '#FFD700' : '#fff',
+                            fontWeight: teamShouldHighlight ? '600' : '400',
                             fontSize: '9px',
                             width: '80px'
                           }}>
@@ -1210,7 +1351,7 @@ export default function MatchdayReport({ csvData, matchdayNumber }: MatchdayRepo
                           <td style={{ 
                             padding: '4px 8px', 
                             textAlign: 'right',
-                            color: isBeitarTeam ? '#FFD700' : '#fbbf24',
+                            color: teamShouldHighlight ? '#FFD700' : '#fbbf24',
                             fontWeight: '600',
                             fontSize: '12px'
                           }}>

@@ -306,6 +306,7 @@ export class CSVReportService {
       // Filter reports by season
       const seasonReports = result.data.filter(report => report.season === season)
       
+      
       if (seasonReports.length === 0) {
         return { success: false, error: `No reports found for season ${season}` }
       }
