@@ -10,11 +10,12 @@ import MatchdayReport from './MatchdayReport'
 import MatchGPSLeagueTab from './MatchGPSLeagueTab'
 import IntensityView from './IntensityView'
 import DistanceView from './DistanceView'
+import CornersDashboardView from './CornersDashboardView'
 import { fetchTeamMatchStatistics, fetchTeamMatchMetadata, fetchAggregatedTeamStatistics, checkAggregatedDataExists } from '@/lib/teamMatchService'
-import { BarChart3, Trophy, Scale, FileText, Activity, Zap, Route } from 'lucide-react'
+import { BarChart3, Trophy, Scale, FileText, Activity, Zap, Route, Target } from 'lucide-react'
 
 export default function CoachDashboard() {
-  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps'>('weekly-running')
+  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps' | 'corners'>('weekly-running')
   const [activeNutritionTab, setActiveNutritionTab] = useState<'by-player' | 'team-overview'>('by-player')
   const [activeTrainingTab, setActiveTrainingTab] = useState<'distance' | 'intensity'>('distance')
   const [availableMatches, setAvailableMatches] = useState<any[]>([])
@@ -242,6 +243,13 @@ export default function CoachDashboard() {
           <Route />
           Training GPS Data
         </button>
+        <button
+          onClick={() => setActiveCoachTab('corners')}
+          className={`tab-button ${activeCoachTab === 'corners' ? 'active' : ''}`}
+        >
+          <Target />
+          Corners Analysis
+        </button>
       </nav>
 
       <div className="coach-tab-content">
@@ -459,6 +467,11 @@ export default function CoachDashboard() {
                 <IntensityView />
               </div>
             )}
+          </div>
+        )}
+        {activeCoachTab === 'corners' && (
+          <div className="corners-tab">
+            <CornersDashboardView />
           </div>
         )}
       </div>

@@ -14,12 +14,13 @@ import League from './components/League'
 import MatchdayWizard from './components/MatchdayWizard'
 import OpponentView from './components/OpponentView'
 import DietitianDashboard from './components/DietitianDashboard'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock, Target } from 'lucide-react'
+import CornersView from './components/CornersView'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock, Target, Flag } from 'lucide-react'
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'developer'>('coach-dashboard')
   const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
-  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'opponent-view' | 'dietitian'>('coaches')
+  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'opponent-view' | 'dietitian' | 'corners'>('coaches')
   const [showDeveloperAccess, setShowDeveloperAccess] = useState(false)
 
   return (
@@ -136,6 +137,15 @@ export default function Home() {
                   <Scale />
                   Dietitian
                 </button>
+                <button
+                  onClick={() => {
+                    setDeveloperSection('corners')
+                  }}
+                  className={`section-button ${developerSection === 'corners' ? 'active' : ''}`}
+                >
+                  <Flag />
+                  Corners
+                </button>
               </nav>
 
               {/* Coaches Tools Section */}
@@ -234,6 +244,13 @@ export default function Home() {
               {developerSection === 'dietitian' && (
                 <div className="tab-content">
                   <DietitianDashboard />
+                </div>
+              )}
+
+              {/* Corners Section */}
+              {developerSection === 'corners' && (
+                <div className="tab-content">
+                  <CornersView />
                 </div>
               )}
             </>

@@ -1,0 +1,15 @@
+Rank,teamId,teamImageId,teamFullName,Team,teamAbbrevName,teamShortName,newestTeamColor,leagueId,leagueName,GM,xgcornopp,xgcorn,goaloppfromcorner,goalfromcorner,shotoppfromcorner,shotfromcorner,oppcorners,Corners,optaTeamId
+1,6j9xcfzg0gp8j84yaoidmspaw,2787,Maccabi Netanya,Maccabi Netanya,MNT,M Netanya,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,1.30,1.64,1,2,7,9,23,21,2787
+2,8k3kbfzfqi2senhosaaimvgjm,18909,Ironi Tiberias,Ironi Tiberias,ITB,I Tiberias,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,1.88,1.21,2,1,13,7,26,13,18909
+3,e2ryr6aied781hzc7hx9yntk8,2788,Ironi Kiryat Shmona,Ironi Kiryat Shmona,IKS,Kiryat Shmona,#D3D3D3,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.13,0.98,0,1,3,11,18,16,2788
+4,9ppjmek1r3tb9yddebneaxj7i,3012,Hapoel Be'er Sheva,Hapoel Be'er Sheva,HBS,H Be'er Sheva,#ff0000,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),3,0.28,0.91,0,1,2,9,6,24,3012
+5,bvgvmydv5tuf6lxvwvuwbrfje,16514,Maccabi Bnei Raina,Maccabi Bnei Raina,RNA,Bnei Raina,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,1.11,0.82,1,1,11,4,23,15,16514
+6,1f4f869ya31jh0biwiipqxpj2,2792,Hapoel Petah Tikva,Hapoel Petah Tikva,HPT,H Petah Tikva,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.42,0.66,0,0,5,6,11,22,2792
+7,ealjallt13942jb2q2hk4buxa,1007,Maccabi Tel Aviv,Maccabi Tel Aviv,MTA,Maccabi TA,#FFFF00,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.12,0.57,0,0,3,6,10,19,1007
+8,bglyqy0awtu6lzvpab390rir2,491,Maccabi Haifa,Maccabi Haifa,MHA,M Haifa,#008000,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),3,0.06,0.52,0,2,2,7,7,20,491
+9,7cd60mgte8skipavum0o6ecyo,3183,Hapoel Haifa,Hapoel Haifa,HHA,H Haifa,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),3,0.35,0.48,0,1,6,5,17,14,3183
+10,3xbrfd77vj0zi8vbrnwqz54z,1942,Ashdod,Ashdod,ASH,Ashdod,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.93,0.36,4,0,9,8,17,14,1942
+11,ehmuu62daxvzhvn2wfoe9t86y,15112,Hapoel Jerusalem,Hapoel Jerusalem,HJM,H Jerusalem,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,1.19,0.36,2,0,10,5,21,10,15112
+12,dv6fn97f0kx4x988y86gkmwb8,245,Hapoel Tel Aviv,Hapoel Tel Aviv,HTA,Hapoel TA,#ff0000,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.78,0.25,1,2,4,3,17,17,245
+13,54hbubv11m3ygghs51uperow9,2789,Bnei Sakhnin,Bnei Sakhnin,BNS,Sakhnin,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),3,0.27,0.11,0,0,6,2,18,12,2789
+14,cx0rucvdzkg1yd00vrueu2u7,469,Beitar Jerusalem,Beitar Jerusalem,BJM,Beitar,,2xg0qvif1rh7du6wmk2eleku3,Ligat Ha'al (Israel),4,0.11,0.08,0,0,3,2,19,16,469
