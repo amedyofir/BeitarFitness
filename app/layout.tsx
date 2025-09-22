@@ -2,8 +2,11 @@ import './globals.css'
 import React from 'react'
 
 export const metadata = {
-  title: 'FCBJ - Scouting & Data',
+  title: 'FCBJ DATA',
   description: 'Track and analyze fitness data with innovative design',
+  icons: {
+    icon: '/beitar-logo.png',
+  },
 }
 
 export default function RootLayout({
