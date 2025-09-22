@@ -383,6 +383,7 @@ export default function DistanceView() {
   const [isUpdatingMissingNote, setIsUpdatingMissingNote] = useState(false)
   const [isWhiteTheme, setIsWhiteTheme] = useState(false)
   const [exportFullWidth, setExportFullWidth] = useState(false)
+  const [pngWhiteTheme, setPngWhiteTheme] = useState(false)
 
   // Helper function to get week start date from a date
   const getWeekStartDate = (date: Date): Date => {
@@ -743,40 +744,171 @@ export default function DistanceView() {
     )
   }
 
+  const handleDownloadLast5WeeksPNG = async () => {
+    if (!targetRef.current) return
+
+    try {
+      // Get last 5 weeks
+      const last5Weeks = weeks.slice(-5)
+
+      // Create a temporary container for the PNG
+      const tempContainer = document.createElement('div')
+      tempContainer.style.position = 'absolute'
+      tempContainer.style.left = '-9999px'
+      tempContainer.style.top = '-9999px'
+      tempContainer.style.backgroundColor = pngWhiteTheme ? '#ffffff' : '#000000'
+      tempContainer.style.color = pngWhiteTheme ? '#000000' : '#FFD700'
+      tempContainer.style.padding = '20px'
+      tempContainer.style.fontFamily = 'sans-serif'
+
+      // Create header
+      const header = document.createElement('div')
+      header.style.textAlign = 'center'
+      header.style.marginBottom = '20px'
+      header.style.display = 'flex'
+      header.style.flexDirection = 'column'
+      header.style.alignItems = 'center'
+
+      // Add logo
+      const logo = document.createElement('img')
+      logo.src = '/beitar-logo.png'
+      logo.style.maxHeight = '60px'
+      logo.style.width = 'auto'
+      logo.style.marginBottom = '10px'
+      logo.onerror = () => { logo.style.display = 'none' }
+      header.appendChild(logo)
+
+      // Add titles
+      const titleContainer = document.createElement('div')
+      titleContainer.innerHTML = `
+        <h1 style="color: ${pngWhiteTheme ? '#000000' : '#FFD700'}; margin: 0; font-size: 24px;">FCBJ DATA</h1>
+        <h2 style="color: ${pngWhiteTheme ? '#000000' : '#FFD700'}; margin: 5px 0; font-size: 16px;">Total Distance - Last 5 Weeks</h2>
+      `
+      header.appendChild(titleContainer)
+      tempContainer.appendChild(header)
+
+      // Create table
+      const table = document.createElement('table')
+      table.style.borderCollapse = 'collapse'
+      table.style.width = '100%'
+      table.style.border = '2px solid #333'
+
+      // Create header row
+      const headerRow = document.createElement('tr')
+      headerRow.style.backgroundColor = pngWhiteTheme ? '#f8f9fa' : '#333'
+
+      const playerHeader = document.createElement('th')
+      playerHeader.textContent = 'Player'
+      playerHeader.style.border = pngWhiteTheme ? '1px solid #ddd' : '1px solid #333'
+      playerHeader.style.padding = '8px'
+      playerHeader.style.color = pngWhiteTheme ? '#000000' : '#FFD700'
+      playerHeader.style.textAlign = 'center'
+      headerRow.appendChild(playerHeader)
+
+      last5Weeks.forEach((week, index) => {
+        const weekHeader = document.createElement('th')
+        weekHeader.innerHTML = `
+          <div style="font-weight: bold;">W${weeks.length - 4 + index}</div>
+          <div style="font-size: 10px; margin-top: 2px;">${week}</div>
+        `
+        weekHeader.style.border = pngWhiteTheme ? '1px solid #ddd' : '1px solid #333'
+        weekHeader.style.padding = '8px'
+        weekHeader.style.color = pngWhiteTheme ? '#000000' : '#FFD700'
+        weekHeader.style.textAlign = 'center'
+        weekHeader.style.fontSize = '12px'
+        weekHeader.style.lineHeight = '1.2'
+        headerRow.appendChild(weekHeader)
+      })
+
+      table.appendChild(headerRow)
+
+      // Add player rows
+      players.forEach(player => {
+        const row = document.createElement('tr')
+
+        const playerCell = document.createElement('td')
+        playerCell.textContent = formatPlayerName(player)
+        playerCell.style.border = pngWhiteTheme ? '1px solid #ddd' : '1px solid #333'
+        playerCell.style.padding = '8px'
+        playerCell.style.color = pngWhiteTheme ? '#000000' : '#FFD700'
+        playerCell.style.textAlign = 'center'
+        playerCell.style.fontSize = '13px'
+        row.appendChild(playerCell)
+
+        last5Weeks.forEach(week => {
+          const cell = document.createElement('td')
+          const data = playerData[player]?.[week]
+
+          if (data && data.total_distance > 0) {
+            cell.textContent = formatDistance(data.total_distance)
+
+            // Apply performance coloring based on target
+            const performanceClass = getPerformanceClass(data.total_distance, data.target_km * 1000)
+            if (performanceClass === 'performance-excellent') {
+              cell.style.color = '#28a745'  // Green
+            } else if (performanceClass === 'performance-warning') {
+              cell.style.color = '#fd7e14'  // Orange
+            } else if (performanceClass === 'performance-critical') {
+              cell.style.color = '#dc3545'  // Red
+            }
+          } else {
+            cell.textContent = '-'
+            cell.style.color = pngWhiteTheme ? '#999' : '#666'
+          }
+
+          cell.style.border = pngWhiteTheme ? '1px solid #ddd' : '1px solid #333'
+          cell.style.padding = '8px'
+          cell.style.textAlign = 'center'
+          cell.style.fontSize = '13px'
+          row.appendChild(cell)
+        })
+
+        table.appendChild(row)
+      })
+
+      tempContainer.appendChild(table)
+      document.body.appendChild(tempContainer)
+
+      // Generate PNG
+      const canvas = await html2canvas(tempContainer, {
+        backgroundColor: pngWhiteTheme ? '#ffffff' : '#000000',
+        scale: 2,
+        logging: false
+      })
+
+      // Download
+      const link = document.createElement('a')
+      link.download = 'distance-last-5-weeks.png'
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+
+      // Cleanup
+      document.body.removeChild(tempContainer)
+
+    } catch (error) {
+      console.error('Error generating PNG:', error)
+      alert('Failed to generate PNG. Please try again.')
+    }
+  }
+
   return (
     <div className="distance-view-section">
       <div className="distance-header-actions">
-        <button 
-          onClick={() => setIsWhiteTheme(!isWhiteTheme)}
+        <button
+          onClick={() => setPngWhiteTheme(!pngWhiteTheme)}
           className="download-btn"
           style={{
-            background: isWhiteTheme ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
-            color: isWhiteTheme ? '#000' : '#FFD700'
+            background: pngWhiteTheme ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+            color: pngWhiteTheme ? '#000' : '#FFD700',
+            border: pngWhiteTheme ? '1px solid rgba(255, 255, 255, 0.5)' : '1px solid rgba(255, 215, 0, 0.3)'
           }}
         >
           <Palette size={16} />
-          {isWhiteTheme ? 'Dark' : 'Light'}
+          PNG {pngWhiteTheme ? 'Dark' : 'Light'}
         </button>
-        <button 
-          onClick={() => setExportFullWidth(!exportFullWidth)}
-          className="download-btn"
-          style={{
-            background: exportFullWidth ? 'rgba(107, 207, 127, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-            color: exportFullWidth ? '#6BCF7F' : '#FFD700',
-            border: exportFullWidth ? '1px solid rgba(107, 207, 127, 0.5)' : '1px solid rgba(255, 215, 0, 0.3)'
-          }}
-          title={exportFullWidth ? 'Export full width enabled' : 'Export visible area only'}
-        >
-          <Maximize2 size={16} />
-          {exportFullWidth ? 'Full' : 'Visible'}
-        </button>
-        <button onClick={handleDownloadPDF} className="download-btn">
+        <button onClick={handleDownloadLast5WeeksPNG} className="download-btn">
           <Download size={16} />
-          PDF
-        </button>
-        <button onClick={handleDownloadImage} className="download-btn">
-          <Download size={16} />
-          PNG
+          Last 5 Weeks PNG
         </button>
       </div>
       <div ref={targetRef} style={isWhiteTheme ? {
@@ -788,9 +920,9 @@ export default function DistanceView() {
           color: 'black'
         } : {}}>
           <div className="pdf-header-content">
-            <img 
-              src="/beitar-logo.png" 
-              alt="FCBJ Logo" 
+            <img
+              src="/beitar-logo.png"
+              alt="FCBJ Logo"
               className="pdf-header-logo"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
@@ -801,8 +933,9 @@ export default function DistanceView() {
                 width: 'auto'
               }}
             />
-            <h1 className="pdf-header-title" style={isWhiteTheme ? { color: 'black' } : {}}>FCBJ - Data</h1>
+            <h1 className="pdf-header-title" style={isWhiteTheme ? { color: 'black' } : {}}>FCBJ DATA</h1>
           </div>
+          <h2 className="pdf-subheader" style={isWhiteTheme ? { color: 'black', fontSize: '0.8em', textAlign: 'center', margin: '5px 0' } : { fontSize: '0.8em', textAlign: 'center', margin: '5px 0' }}>Total Distance - Matches + Trainings</h2>
         </div>
         <div className="distance-synchronized-container" style={isWhiteTheme ? {
           backgroundColor: 'white',
@@ -887,7 +1020,7 @@ export default function DistanceView() {
                     {validDistances.length > 0 ? (
                       <div className="cell-content-horizontal">
                         <div className={`distance-compact ${getPerformanceClass(avgDistance, weekTarget * 1000)}`} style={isWhiteTheme ? { color: 'black' } : {}}>
-                          {formatDistance(avgDistance)}
+                          {avgDistance === 0 ? '-' : formatDistance(avgDistance)}
                         </div>
                       </div>
                     ) : (
@@ -915,7 +1048,7 @@ export default function DistanceView() {
                       {data ? (
                         <div className="cell-content-horizontal">
                           <div className={`distance-compact ${getPerformanceClass(data.total_distance, data.target_km * 1000)}`} style={isWhiteTheme ? { color: 'black' } : {}}>
-                            {formatDistance(data.total_distance)}
+                            {data.total_distance === 0 ? '-' : formatDistance(data.total_distance)}
                           </div>
                         </div>
                       ) : (
