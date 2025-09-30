@@ -69,7 +69,9 @@ export interface OpponentStatistics {
   // Press Score Components (from second CSV - our team's metrics)
   our_avg_sequence_time?: number
   our_long_ball_percentage?: number
-  our_a1_to_a2_a3_percentage?: number
+  our_s1e3?: number
+  our_s1e2?: number
+  our_s1?: number
 
   // Metadata
   total_matchdays?: number
@@ -101,9 +103,9 @@ export const parseOurTeamMetricsCsvRow = (row: any) => {
   }
 
   // Extract values from CSV 2 (using correct column names)
-  const s1e2 = parseInt_(row['S1E2']) || 0  // StartA1EndA2
-  const s1e3 = parseInt_(row['S1E3']) || 0  // StartA1EndA3
-  const s1 = parseInt_(row['s1']) || 0      // SeqStartA1
+  const s1e2 = parseInt_(row['S1E2'])  // StartA1EndA2
+  const s1e3 = parseInt_(row['S1E3'])  // StartA1EndA3
+  const s1 = parseInt_(row['s1'])      // SeqStartA1
 
   // Helper function to parse percentage strings
   const parsePercentage = (value: string): number | undefined => {
@@ -116,16 +118,13 @@ export const parseOurTeamMetricsCsvRow = (row: any) => {
   // LongBall% - take directly from CSV (already calculated)
   const longBallPercentage = parsePercentage(row['LongBall%'])
 
-  // A1→A2+A3 percentage = (S1E3 + S1E2) / s1
-  const a1ToA2A3Percentage = s1 > 0
-    ? ((s1e3 + s1e2) / s1) * 100
-    : undefined
-
   return {
     team_full_name: row['teamFullName'] || row['Team'],
     our_avg_sequence_time: parseNumeric(row['AvgSeqTime']),
     our_long_ball_percentage: longBallPercentage,
-    our_a1_to_a2_a3_percentage: a1ToA2A3Percentage
+    our_s1e3: s1e3,
+    our_s1e2: s1e2,
+    our_s1: s1
   }
 }
 
@@ -237,7 +236,9 @@ export const mergeOpponentStatistics = (
         ...team,
         our_avg_sequence_time: ourTeamMetrics.our_avg_sequence_time,
         our_long_ball_percentage: ourTeamMetrics.our_long_ball_percentage,
-        our_a1_to_a2_a3_percentage: ourTeamMetrics.our_a1_to_a2_a3_percentage
+        our_s1e3: ourTeamMetrics.our_s1e3,
+        our_s1e2: ourTeamMetrics.our_s1e2,
+        our_s1: ourTeamMetrics.our_s1
       }
     }
 

@@ -66,6 +66,13 @@ export interface TeamMatchStatistics {
   // Tactical Metrics
   avg_sequence_time?: number
   ppda_40?: number
+
+  // Press Score Components (from second CSV - opponent's metrics when pressed by this team)
+  opp_avg_sequence_time?: number
+  opp_long_ball_percentage?: number
+  opp_s1e3?: number
+  opp_s1e2?: number
+  opp_s1?: number
 }
 
 export interface TeamMatchMetadata {
@@ -208,12 +215,27 @@ export const saveTeamMatchStatistics = async (data: TeamMatchStatistics[], metad
     }
 
     // Insert new team match statistics
-    const dataWithMetadata = data.map(team => ({
-      ...team,
-      matchweek: metadata.matchweek,
-      match_date: metadata.match_date,
-      season: metadata.season || '2025-2026'
-    }))
+    // Filter to only include valid database columns
+    const dataWithMetadata = data.map(team => {
+      const {
+        // Remove any fields that don't exist in database
+        our_avg_sequence_time,
+        our_long_ball_percentage,
+        our_s1e3,
+        our_s1e2,
+        our_s1,
+        our_a1_to_a2_a3_percentage,
+        opp_a1_to_a2_a3_percentage,
+        ...validTeamData
+      } = team as any
+
+      return {
+        ...validTeamData,
+        matchweek: metadata.matchweek,
+        match_date: metadata.match_date,
+        season: metadata.season || '2025-2026'
+      }
+    })
 
     const { error: insertError } = await supabase
       .from('team_match_statistics')

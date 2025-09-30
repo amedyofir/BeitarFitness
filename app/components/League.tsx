@@ -6,7 +6,7 @@ import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
 import SimpleCSVReportsManager from './SimpleCSVReportsManager'
 import RunningReportDashboard from './RunningReportDashboard'
-import TeamAverageReport from './TeamAverageReport'
+import EnhancedTeamAverageReport from './EnhancedTeamAverageReport'
 import TopPlayersReport from './TopPlayersReport'
 
 export default function League() {
@@ -281,7 +281,7 @@ export default function League() {
         )}
 
         {activeTab === 'team-average' && (
-          <TeamAverageReport />
+          <EnhancedTeamAverageReport />
         )}
 
         {activeTab === 'top-players' && (

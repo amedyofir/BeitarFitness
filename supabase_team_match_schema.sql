@@ -66,7 +66,14 @@ CREATE TABLE IF NOT EXISTS team_match_statistics (
     -- Tactical Metrics
     avg_sequence_time DECIMAL(5,1),
     ppda_40 DECIMAL(5,2), -- Passes per Defensive Action
-    
+
+    -- Press Score Components (from second CSV - opponent's metrics when pressed by this team)
+    opp_avg_sequence_time DECIMAL(10,2),
+    opp_long_ball_percentage DECIMAL(5,2),
+    opp_s1e3 INTEGER,
+    opp_s1e2 INTEGER,
+    opp_s1 INTEGER,
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

@@ -11,11 +11,943 @@ import MatchGPSLeagueTab from './MatchGPSLeagueTab'
 import IntensityView from './IntensityView'
 import DistanceView from './DistanceView'
 import CornersDashboardView from './CornersDashboardView'
+import SoccerPitch from './SoccerPitch'
+import OptaDataUploader from './OptaDataUploader'
+import StatsComparison from './StatsComparison'
 import { fetchTeamMatchStatistics, fetchTeamMatchMetadata, fetchAggregatedTeamStatistics, checkAggregatedDataExists } from '@/lib/teamMatchService'
-import { BarChart3, Trophy, Scale, FileText, Activity, Zap, Route, Target } from 'lucide-react'
+import { BarChart3, Trophy, Scale, FileText, Activity, Zap, Route, Target, Users, Upload } from 'lucide-react'
+
+// Matchup Analysis Interface Component
+function MatchupAnalysisInterface() {
+  const [availablePlayers, setAvailablePlayers] = React.useState<any[]>([])
+  const [loadingPlayers, setLoadingPlayers] = React.useState(true)
+  const [teamFilter, setTeamFilter] = React.useState<string>('all')
+  const [positionFilter, setPositionFilter] = React.useState<string>('all')
+  const [leftTeam, setLeftTeam] = React.useState<string>('Beitar Jerusalem')
+  const [rightTeam, setRightTeam] = React.useState<string>('')
+  const [assignedPositions, setAssignedPositions] = React.useState<{[key: string]: any}>({})
+  const [comparisonMode, setComparisonMode] = React.useState<'assignment' | '1v1' | 'unit-vs-unit' | 'side-vs-side' | 'cross-unit'>('assignment')
+  const [selectedUnit, setSelectedUnit] = React.useState<'goalkeeper' | 'defense' | 'midfield' | 'attack' | 'total' | 'left' | 'middle' | 'right' | 'def-vs-att' | 'att-vs-def'>('midfield')
+  const [selectedPlayers, setSelectedPlayers] = React.useState<any[]>([])
+  const [highlightedPlayers, setHighlightedPlayers] = React.useState<any[]>([]) // Individual players to highlight on pitch
+  const [showUploader, setShowUploader] = React.useState(false)
+
+  // Function to load players
+  const loadPlayers = async () => {
+    try {
+      setLoadingPlayers(true)
+      const { fetchAllPlayersForMatchup } = await import('@/lib/playerService')
+      const players = await fetchAllPlayersForMatchup()
+      setAvailablePlayers(players)
+    } catch (err) {
+      console.error('Error loading players:', err)
+      setAvailablePlayers([])
+    } finally {
+      setLoadingPlayers(false)
+    }
+  }
+
+  // Fetch players on component mount
+  React.useEffect(() => {
+    loadPlayers()
+  }, [])
+
+  // Auto-compare teams in different modes
+  React.useEffect(() => {
+    console.log('🚀 Auto-compare effect triggered:', { comparisonMode, selectedUnit, leftTeam, rightTeam, playersCount: availablePlayers.length })
+
+    if (!leftTeam || !rightTeam || availablePlayers.length === 0) {
+      console.log('❌ Early return - missing data:', { leftTeam, rightTeam, playersCount: availablePlayers.length })
+      return
+    }
+
+    const leftTeamPlayers = availablePlayers.filter(p => p.actual_team_name === leftTeam)
+    const rightTeamPlayers = availablePlayers.filter(p => p.actual_team_name === rightTeam)
+
+    console.log('👥 Team players found:', {
+      leftTeam, leftCount: leftTeamPlayers.length,
+      rightTeam, rightCount: rightTeamPlayers.length
+    })
+
+    if (leftTeamPlayers.length === 0 || rightTeamPlayers.length === 0) {
+      console.log('❌ No players found for comparison')
+      return
+    }
+
+    if (comparisonMode === 'side-vs-side') {
+      if (selectedUnit === 'left') {
+        // Left side: Home LB+LW vs Away RB+RW
+        const homeLBLW = getFieldPositionPlayers(leftTeamPlayers, ['LB', 'LW', 'LWB'])
+        const awayRBRW = getFieldPositionPlayers(rightTeamPlayers, ['RB', 'RW', 'RWB'])
+
+        if (homeLBLW.length > 0 && awayRBRW.length > 0) {
+          setSelectedPlayers([
+            createPositionGroup(homeLBLW, `${leftTeam} Left Side`, 'LB+LW'),
+            createPositionGroup(awayRBRW, `${rightTeam} Right Side`, 'RB+RW')
+          ])
+          setHighlightedPlayers([...homeLBLW, ...awayRBRW])
+        }
+      } else if (selectedUnit === 'middle') {
+        // Middle: CM1+CM2+CM3 vs opponent midfield
+        const homeMidfield = getFieldPositionPlayers(leftTeamPlayers, ['CM', 'CDM', 'CAM', 'DM', 'AM'])
+        const awayMidfield = getFieldPositionPlayers(rightTeamPlayers, ['CM', 'CDM', 'CAM', 'DM', 'AM'])
+
+        if (homeMidfield.length > 0 && awayMidfield.length > 0) {
+          setSelectedPlayers([
+            createPositionGroup(homeMidfield, `${leftTeam} Midfield`, 'CM1+CM2+CM3'),
+            createPositionGroup(awayMidfield, `${rightTeam} Midfield`, 'CM1+CM2+CM3')
+          ])
+          setHighlightedPlayers([...homeMidfield, ...awayMidfield])
+        }
+      } else if (selectedUnit === 'right') {
+        // Right side: Home RB+RW vs Away LB+LW
+        const homeRBRW = getFieldPositionPlayers(leftTeamPlayers, ['RB', 'RW', 'RWB'])
+        const awayLBLW = getFieldPositionPlayers(rightTeamPlayers, ['LB', 'LW', 'LWB'])
+
+        if (homeRBRW.length > 0 && awayLBLW.length > 0) {
+          setSelectedPlayers([
+            createPositionGroup(homeRBRW, `${leftTeam} Right Side`, 'RB+RW'),
+            createPositionGroup(awayLBLW, `${rightTeam} Left Side`, 'LB+LW')
+          ])
+          setHighlightedPlayers([...homeRBRW, ...awayLBLW])
+        }
+      }
+    } else if (comparisonMode === 'cross-unit') {
+      // Cross unit works like unit-vs-unit but compares different units
+      // Let the SoccerPitch component handle the visual rendering with opacity
+      if (selectedUnit === 'def-vs-att') {
+        // Home Defense vs Away Attack - create unit totals for stats comparison
+        const homeDefense = leftTeamPlayers.filter(p => p.unit === 'defense')
+        const awayAttack = rightTeamPlayers.filter(p => p.unit === 'attack')
+
+        if (homeDefense.length > 0 && awayAttack.length > 0) {
+          import('@/lib/playerService').then(({ calculateUnitTotals }) => {
+            const homeDefenseTotal = calculateUnitTotals(homeDefense)
+            const awayAttackTotal = calculateUnitTotals(awayAttack)
+
+            setSelectedPlayers([homeDefenseTotal, awayAttackTotal])
+          })
+        }
+      } else if (selectedUnit === 'att-vs-def') {
+        // Home Attack vs Away Defense
+        const homeAttack = leftTeamPlayers.filter(p => p.unit === 'attack')
+        const awayDefense = rightTeamPlayers.filter(p => p.unit === 'defense')
+
+        if (homeAttack.length > 0 && awayDefense.length > 0) {
+          import('@/lib/playerService').then(({ calculateUnitTotals }) => {
+            const homeAttackTotal = calculateUnitTotals(homeAttack)
+            const awayDefenseTotal = calculateUnitTotals(awayDefense)
+
+            setSelectedPlayers([homeAttackTotal, awayDefenseTotal])
+          })
+        }
+      }
+    }
+  }, [comparisonMode, leftTeam, rightTeam, selectedUnit, availablePlayers])
+
+  // Helper function to calculate total stats for a team
+  const calculateTeamTotalStats = (players: any[]) => {
+    if (players.length === 0) {
+      return { duels: 0, passes: 0, intensity: 0, xG: 0, distance: 0 }
+    }
+
+    const totals = players.reduce((acc, player) => {
+      const stats = player.stats || {}
+      return {
+        duels: acc.duels + (stats.duels || 0),
+        passes: acc.passes + (stats.passes || 0),
+        intensity: acc.intensity + (stats.intensity || 0),
+        xG: acc.xG + (stats.xG || 0),
+        distance: acc.distance + (stats.distance || 0)
+      }
+    }, { duels: 0, passes: 0, intensity: 0, xG: 0, distance: 0 })
+
+    // For percentage-based stats, calculate averages
+    return {
+      duels: totals.duels,
+      passes: totals.passes,
+      intensity: totals.intensity / players.length, // Average intensity
+      xG: totals.xG,
+      distance: totals.distance
+    }
+  }
+
+  // Helper function to get players by field positions
+  const getFieldPositionPlayers = (players: any[], positions: string[]) => {
+    console.log('🔍 Searching for positions:', positions)
+    console.log('🔍 Available players:', players.map(p => ({ name: p.name, position: p.position })))
+
+    const filtered = players.filter(player => {
+      const position = player.position?.toUpperCase() || ''
+      const matches = positions.some(pos => position.includes(pos.toUpperCase()))
+      if (matches) {
+        console.log(`✅ Player ${player.name} (${player.position}) matches position ${positions}`)
+      }
+      return matches
+    })
+
+    console.log('🎯 Filtered players:', filtered.map(p => ({ name: p.name, position: p.position })))
+    return filtered
+  }
+
+  // Helper function to create a position group for comparison
+  const createPositionGroup = (players: any[], groupName: string, positionLabel: string) => {
+    return {
+      id: `group-${groupName.replace(/\s+/g, '-').toLowerCase()}`,
+      name: groupName,
+      position: positionLabel,
+      unit: 'group',
+      team: groupName.includes(leftTeam) ? 'left' : 'right',
+      actual_team_name: groupName.includes(leftTeam) ? leftTeam : rightTeam,
+      stats: calculateTeamTotalStats(players),
+      playerCount: players.length
+    }
+  }
+
+  const getUniqueTeamNames = () => {
+    const teamNames = availablePlayers
+      .map(p => p.actual_team_name)
+      .filter(t => t && t !== 'Unknown Team')
+    return Array.from(new Set(teamNames)).sort()
+  }
+
+  const getUniquePositions = () => {
+    const positions = availablePlayers
+      .map(p => p.position)
+      .filter(p => p && p !== 'Unknown')
+    return Array.from(new Set(positions)).sort()
+  }
+
+  const getFilteredPlayers = () => {
+    let filtered = availablePlayers
+
+    if (teamFilter !== 'all') {
+      filtered = filtered.filter(p => p.actual_team_name === teamFilter)
+    }
+
+    if (positionFilter !== 'all') {
+      filtered = filtered.filter(p => p.position === positionFilter)
+    }
+
+    return filtered
+  }
+
+  const getModalFilteredPlayers = () => {
+    if (!selectedPositionForAssignment) return []
+
+    const isLeftPosition = selectedPositionForAssignment.startsWith('left-')
+    const isRightPosition = selectedPositionForAssignment.startsWith('right-')
+
+    let filtered = availablePlayers
+
+    if (isLeftPosition && leftTeam) {
+      filtered = filtered.filter(p => p.actual_team_name === leftTeam)
+    } else if (isRightPosition && rightTeam) {
+      filtered = filtered.filter(p => p.actual_team_name === rightTeam)
+    }
+
+    return filtered
+  }
+
+  const handlePlayerClick = (player: any) => {
+    if (comparisonMode === '1v1') {
+      const otherTeam = player.team === 'beitar' ? 'opponent' : 'beitar'
+      const currentFromOtherTeam = selectedPlayers.find(p => p.team === otherTeam)
+      const currentFromSameTeam = selectedPlayers.find(p => p.team === player.team)
+
+      let newSelection = []
+      if (currentFromSameTeam) {
+        newSelection = selectedPlayers.filter(p => p.team !== player.team)
+        newSelection.push(player)
+      } else {
+        newSelection = [...selectedPlayers.filter(p => p.team === otherTeam), player]
+      }
+
+      setSelectedPlayers(newSelection.slice(0, 2))
+    }
+  }
+
+  const [selectedPositionForAssignment, setSelectedPositionForAssignment] = React.useState<string | null>(null)
+  const [showPlayerModal, setShowPlayerModal] = React.useState(false)
+  const [modalPosition, setModalPosition] = React.useState<{x: number, y: number}>({x: 0, y: 0})
+
+  const handlePlayerAssignment = (positionKey: string, player: any, event?: React.MouseEvent) => {
+    setSelectedPositionForAssignment(positionKey)
+
+    // Show modal at click position
+    if (event) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      setModalPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      })
+    }
+    setShowPlayerModal(true)
+    console.log('Position selected for assignment:', positionKey)
+  }
+
+  const assignPlayerToPosition = (player: any) => {
+    if (selectedPositionForAssignment) {
+      // Determine which team this position belongs to
+      const isLeftPosition = selectedPositionForAssignment.startsWith('left-')
+      const isRightPosition = selectedPositionForAssignment.startsWith('right-')
+
+      // Check if player belongs to the correct team based on position
+      let canAssign = false
+      if (isLeftPosition) {
+        // Left positions should be assigned players from leftTeam
+        canAssign = player.actual_team_name === leftTeam
+      } else if (isRightPosition) {
+        // Right positions should be assigned players from rightTeam
+        canAssign = player.actual_team_name === rightTeam
+      }
+
+      if (canAssign) {
+        setAssignedPositions(prev => ({
+          ...prev,
+          [selectedPositionForAssignment]: player
+        }))
+        setSelectedPositionForAssignment(null) // Clear selection after assignment
+        setShowPlayerModal(false) // Close modal
+        console.log('Player assigned:', player.name, 'to position:', selectedPositionForAssignment)
+      } else {
+        // Show warning if trying to assign wrong team
+        const expectedTeam = isLeftPosition ? leftTeam : rightTeam
+        console.warn(`Cannot assign ${player.actual_team_name} player to ${isLeftPosition ? 'left' : 'right'} team position. Expected: ${expectedTeam}`)
+        alert(`This position requires a player from ${expectedTeam}. Selected player is from ${player.actual_team_name}.`)
+      }
+    }
+  }
+
+  const handle1v1Selection = React.useCallback((players: any[]) => {
+    // Add safety check to prevent React DOM errors
+    if (comparisonMode === '1v1' && Array.isArray(players)) {
+      setSelectedPlayers(players)
+    }
+  }, [comparisonMode])
+
+
+  const getBeitarPlayers = () => {
+    return availablePlayers.filter(p => p.team === 'beitar')
+  }
+
+  const getOpponentPlayers = () => {
+    return availablePlayers.filter(p => p.team === 'opponent')
+  }
+
+  if (loadingPlayers) {
+    return (
+      <div style={{
+        height: '100vh',
+        background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div style={{ color: '#FFD700', fontSize: '18px', fontWeight: '600' }}>
+          Loading players...
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      height: '100vh',
+      background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+      color: '#fff',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Top Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px 24px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 215, 0, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#FFD700' }}>
+            🏆 Matchup Analysis
+          </h2>
+
+          {/* Upload Data Button */}
+          <button
+            onClick={() => setShowUploader(!showUploader)}
+            style={{
+              background: showUploader
+                ? 'linear-gradient(135deg, #FFD700, #FFA500)'
+                : 'rgba(255, 255, 255, 0.1)',
+              color: showUploader ? '#000' : '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Upload size={14} />
+            Upload Data
+          </button>
+        </div>
+
+        {/* Simple Control Panel */}
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.3)',
+          borderRadius: '6px',
+          padding: '12px',
+          border: '1px solid rgba(255, 215, 0, 0.2)',
+          marginBottom: '12px'
+        }}>
+          {/* Team Selection */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: '#FFD700', fontSize: '12px', marginBottom: '4px', display: 'block' }}>
+                Home Team
+              </label>
+              <select
+                value={leftTeam}
+                onChange={(e) => setLeftTeam(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '4px',
+                  padding: '6px 8px',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+              >
+                <option value="Beitar Jerusalem">Beitar Jerusalem</option>
+                {getUniqueTeamNames().map(teamName => (
+                  <option key={teamName} value={teamName} style={{ background: '#1a1a1a' }}>
+                    {teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{
+              color: '#FFD700',
+              fontSize: '12px',
+              fontWeight: '600',
+              padding: '0 8px'
+            }}>VS</div>
+
+            <div style={{ flex: 1 }}>
+              <label style={{ color: '#ef4444', fontSize: '12px', marginBottom: '4px', display: 'block' }}>
+                Away Team
+              </label>
+              <select
+                value={rightTeam}
+                onChange={(e) => setRightTeam(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '4px',
+                  padding: '6px 8px',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+              >
+                <option value="">Select Away Team</option>
+                {getUniqueTeamNames().map(teamName => (
+                  <option key={teamName} value={teamName} style={{ background: '#1a1a1a' }}>
+                    {teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Analysis Mode Selection */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            {[
+              { mode: 'assignment', label: 'Assign' },
+              { mode: '1v1', label: '1v1' },
+              { mode: 'unit-vs-unit', label: 'Unit vs Unit' },
+              { mode: 'side-vs-side', label: 'Side vs Side' },
+              { mode: 'cross-unit', label: 'Cross Unit' }
+            ].map(({ mode, label }) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  React.startTransition(() => {
+                    setComparisonMode(mode as any)
+                    if (mode === '1v1' || mode === 'unit-vs-unit' || mode === 'side-vs-side' || mode === 'cross-unit') {
+                      setSelectedPlayers([])
+                      setHighlightedPlayers([])
+                      // For cross-unit and side-vs-side, ensure we have an opponent team and set default units
+                      if ((mode === 'side-vs-side' || mode === 'cross-unit') && !rightTeam) {
+                        console.log('⚠️ Setting default opponent team for comparison mode')
+                        const teamNames = getUniqueTeamNames()
+                        const defaultOpponent = teamNames.find(name => name !== leftTeam)
+                        if (defaultOpponent) {
+                          setRightTeam(defaultOpponent)
+                        }
+                      }
+                      // Set default units for new modes
+                      if (mode === 'side-vs-side') {
+                        setSelectedUnit('left')
+                      } else if (mode === 'cross-unit') {
+                        setSelectedUnit('def-vs-att')
+                      }
+                    }
+                  })
+                }}
+                style={{
+                  background: comparisonMode === mode
+                    ? 'linear-gradient(135deg, #FFD700, #FFA500)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                  color: comparisonMode === mode ? '#000' : '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Unit Selection for Different Comparison Modes */}
+          {comparisonMode === 'unit-vs-unit' && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[
+                { value: 'goalkeeper', label: 'GK' },
+                { value: 'defense', label: 'DEF' },
+                { value: 'midfield', label: 'MID' },
+                { value: 'attack', label: 'ATT' }
+              ].map(unit => (
+                <button
+                  key={unit.value}
+                  onClick={() => setSelectedUnit(unit.value as any)}
+                  style={{
+                    background: selectedUnit === unit.value
+                      ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                    color: selectedUnit === unit.value ? '#fff' : '#cbd5e1',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    flex: 1
+                  }}
+                >
+                  {unit.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Side vs Side - Field Position Selection */}
+          {comparisonMode === 'side-vs-side' && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[
+                { value: 'left', label: 'Left Side (LB+LW vs RB+RW)' },
+                { value: 'middle', label: 'Middle (CM1+CM2+CM3)' },
+                { value: 'right', label: 'Right Side (RB+RW vs LB+LW)' }
+              ].map(unit => (
+                <button
+                  key={unit.value}
+                  onClick={() => setSelectedUnit(unit.value as any)}
+                  style={{
+                    background: selectedUnit === unit.value
+                      ? 'linear-gradient(135deg, #10b981, #047857)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                    color: selectedUnit === unit.value ? '#fff' : '#cbd5e1',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    flex: 1
+                  }}
+                >
+                  {unit.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Cross Unit - Defense vs Attack */}
+          {comparisonMode === 'cross-unit' && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {[
+                { value: 'def-vs-att', label: 'Home DEF vs Away ATT' },
+                { value: 'att-vs-def', label: 'Home ATT vs Away DEF' }
+              ].map(unit => (
+                <button
+                  key={unit.value}
+                  onClick={() => setSelectedUnit(unit.value as any)}
+                  style={{
+                    background: selectedUnit === unit.value
+                      ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                    color: selectedUnit === unit.value ? '#fff' : '#cbd5e1',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    flex: 1
+                  }}
+                >
+                  {unit.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+      {/* Data Upload Section - Full Width */}
+      {showUploader && (
+        <div style={{
+          marginBottom: '20px',
+          background: 'rgba(0, 0, 0, 0.3)',
+          borderRadius: '8px',
+          padding: '16px',
+          border: '1px solid rgba(255, 215, 0, 0.2)'
+        }}>
+          <OptaDataUploader
+            onUploadComplete={() => {
+              // Reload players after successful upload
+              loadPlayers()
+              setShowUploader(false) // Hide uploader after successful upload
+            }}
+          />
+        </div>
+      )}
+
+      {/* Main Content Area - Full Width */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        minHeight: 'calc(100vh - 200px)'
+      }}>
+          <SoccerPitch
+            beitarPlayers={getBeitarPlayers()}
+            opponentPlayers={getOpponentPlayers()}
+            selectedTeams={[]}
+            selectedPlayers={comparisonMode === 'side-vs-side' ? highlightedPlayers : selectedPlayers}
+            isAssignmentMode={comparisonMode === 'assignment'}
+            comparisonMode={comparisonMode as any}
+            selectedUnit={comparisonMode === 'cross-unit' ?
+              (selectedUnit === 'def-vs-att' ? 'defense' : selectedUnit === 'att-vs-def' ? 'attack' : undefined) :
+              (selectedUnit !== 'total' && selectedUnit !== 'left' && selectedUnit !== 'middle' && selectedUnit !== 'right' ? selectedUnit as any : undefined)
+            }
+            leftTeam={leftTeam}
+            rightTeam={rightTeam || "Select Opponent Team"}
+            assignedPositions={assignedPositions}
+            onPlayerAssignment={handlePlayerAssignment}
+            on1v1Selection={handle1v1Selection}
+          />
+
+          {/* Stats Comparison Component - Below Pitch */}
+          {(comparisonMode === '1v1' || comparisonMode === 'unit-vs-unit' || comparisonMode === 'side-vs-side' || comparisonMode === 'cross-unit') && (
+            <StatsComparison
+              comparisonMode={comparisonMode as any}
+              selectedPlayers={selectedPlayers}
+              selectedUnit={comparisonMode === 'cross-unit' ?
+                (selectedUnit === 'def-vs-att' ? 'defense' : selectedUnit === 'att-vs-def' ? 'attack' : undefined) :
+                (selectedUnit !== 'total' && selectedUnit !== 'left' && selectedUnit !== 'middle' && selectedUnit !== 'right' ? selectedUnit as any : undefined)
+              }
+              allPlayers={availablePlayers}
+            />
+          )}
+
+          <div style={{
+            marginTop: '20px',
+            padding: '15px',
+            background: 'rgba(255, 215, 0, 0.1)',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 215, 0, 0.3)',
+            color: '#FFD700',
+            textAlign: 'center',
+            maxWidth: '600px'
+          }}>
+            {comparisonMode === 'assignment' ? (
+              <>
+                <strong>🎯 Interactive Team Assignment System</strong>
+                <br />
+                1. Select teams in left panel 2. Click position placeholders on pitch 3. Choose player from modal
+                {Object.keys(assignedPositions).length > 0 && (
+                  <>
+                    <br />
+                    <button
+                      onClick={() => setAssignedPositions({})}
+                      style={{
+                        marginTop: '8px',
+                        background: 'rgba(239, 68, 68, 0.2)',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        color: '#fca5a5',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Clear All Assignments
+                    </button>
+                  </>
+                )}
+              </>
+            ) : comparisonMode === '1v1' ? (
+              <>
+                <strong>👥 1v1 Player Comparison</strong>
+                <br />
+                Click on assigned players on the pitch to compare them directly.
+              </>
+            ) : comparisonMode === 'unit-vs-unit' ? (
+              <>
+                <strong>⚽ Unit vs Unit Analysis</strong>
+                <br />
+                Analyzing {selectedUnit} units from both teams. Use the dropdown to switch units.
+              </>
+            ) : (
+              <>
+                <strong>🎯 Side vs Side Analysis</strong>
+                <br />
+                Click different areas of the pitch to compare position groups (top, middle, bottom).
+              </>
+            )}
+          </div>
+        </div>
+
+      {/* Player Selection Modal */}
+      {showPlayerModal && selectedPositionForAssignment && (
+        <>
+          {/* Modal Backdrop */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onClick={() => {
+              setShowPlayerModal(false)
+              setSelectedPositionForAssignment(null)
+            }}
+          >
+            {/* Modal Content */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+                borderRadius: '12px',
+                padding: '20px',
+                maxWidth: '400px',
+                maxHeight: '70vh',
+                width: '90%',
+                border: '2px solid rgba(255, 215, 0, 0.3)',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                borderBottom: '1px solid rgba(255, 215, 0, 0.2)',
+                paddingBottom: '12px'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#FFD700',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}>
+                  🎯 Assign Player to {selectedPositionForAssignment}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowPlayerModal(false)
+                    setSelectedPositionForAssignment(null)
+                  }}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    color: '#fca5a5',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Team Info */}
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '6px',
+                padding: '8px 12px',
+                marginBottom: '16px',
+                fontSize: '12px',
+                color: '#93c5fd',
+                textAlign: 'center'
+              }}>
+                {(() => {
+                  const isLeftPosition = selectedPositionForAssignment.startsWith('left-')
+                  const expectedTeam = isLeftPosition ? leftTeam : rightTeam
+                  return `Showing ${expectedTeam} players only`
+                })()}
+              </div>
+
+              {/* Player List */}
+              <div style={{
+                maxHeight: '400px',
+                overflowY: 'auto'
+              }}>
+                {getModalFilteredPlayers().map(player => (
+                  <div
+                    key={player.id}
+                    onClick={() => assignPlayerToPosition(player)}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      marginBottom: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 215, 0, 0.1)'
+                      e.currentTarget.style.borderColor = 'rgba(255, 215, 0, 0.3)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    {/* Player Photo */}
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      flexShrink: 0
+                    }}>
+                      {player.photo ? (
+                        <img
+                          src={player.photo}
+                          alt={player.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => {
+                            // Fallback to initials if image fails
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent) {
+                              parent.innerHTML = `
+                                <div style="color: #fff; font-size: 14px; font-weight: bold;">
+                                  ${player.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                </div>
+                              `
+                            }
+                          }}
+                        />
+                      ) : (
+                        // Show initials if no photo available
+                        <div style={{
+                          color: '#fff',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}>
+                          {player.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Player Info */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#fff',
+                        marginBottom: '4px'
+                      }}>
+                        {player.name}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#cbd5e1'
+                      }}>
+                        {player.position} • {player.actual_team_name}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {getModalFilteredPlayers().length === 0 && (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '20px',
+                    color: '#888',
+                    fontSize: '14px'
+                  }}>
+                    No players available for this position
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function CoachDashboard() {
-  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps' | 'corners'>('weekly-running')
+  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps' | 'corners' | 'matchup'>('weekly-running')
   const [activeNutritionTab, setActiveNutritionTab] = useState<'by-player' | 'team-overview'>('by-player')
   const [activeTrainingTab, setActiveTrainingTab] = useState<'distance' | 'intensity'>('distance')
   const [availableMatches, setAvailableMatches] = useState<any[]>([])
@@ -250,6 +1182,13 @@ export default function CoachDashboard() {
           <Target />
           Corners Analysis
         </button>
+        <button
+          onClick={() => setActiveCoachTab('matchup')}
+          className={`tab-button ${activeCoachTab === 'matchup' ? 'active' : ''}`}
+        >
+          <Users />
+          Matchup Analysis
+        </button>
       </nav>
 
       <div className="coach-tab-content">
@@ -474,6 +1413,11 @@ export default function CoachDashboard() {
             <CornersDashboardView />
           </div>
         )}
+
+        {activeCoachTab === 'matchup' && (
+          <MatchupAnalysisInterface />
+        )}
+
       </div>
     </div>
   )

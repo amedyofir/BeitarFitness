@@ -263,11 +263,26 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
 
   // Calculate Press Scores (1-100 proportional)
   const calculatePressScores = () => {
+    // Determine which fields to use based on context
+    const avgSeqField = isOpponentAnalysis ? 'our_avg_sequence_time' : 'opp_avg_sequence_time'
+    const longBallField = isOpponentAnalysis ? 'our_long_ball_percentage' : 'opp_long_ball_percentage'
+    const s1e3Field = isOpponentAnalysis ? 'our_s1e3' : 'opp_s1e3'
+    const s1e2Field = isOpponentAnalysis ? 'our_s1e2' : 'opp_s1e2'
+    const s1Field = isOpponentAnalysis ? 'our_s1' : 'opp_s1'
+
+    // Helper to calculate A1→A2+A3 percentage
+    const calcA1ToA2A3 = (team: any) => {
+      const s1e3 = parseFloat(getField(team, s1e3Field)) || 0
+      const s1e2 = parseFloat(getField(team, s1e2Field)) || 0
+      const s1 = parseFloat(getField(team, s1Field)) || 0
+      return s1 > 0 ? ((s1e3 + s1e2) / s1) * 100 : 0
+    }
+
     // Get all values for normalization
     const ppda40Values = sortedTeams.map(t => parseFloat(getField(t, 'ppda40')) || 0)
-    const ourAvgSeqTimeValues = sortedTeams.map(t => parseFloat(getField(t, 'our_avg_sequence_time')) || 0)
-    const ourLongBallValues = sortedTeams.map(t => parseFloat(getField(t, 'our_long_ball_percentage')) || 0)
-    const ourA1ToA2A3Values = sortedTeams.map(t => parseFloat(getField(t, 'our_a1_to_a2_a3_percentage')) || 0)
+    const ourAvgSeqTimeValues = sortedTeams.map(t => parseFloat(getField(t, avgSeqField)) || 0)
+    const ourLongBallValues = sortedTeams.map(t => parseFloat(getField(t, longBallField)) || 0)
+    const ourA1ToA2A3Values = sortedTeams.map(t => calcA1ToA2A3(t))
     const posWonValues = sortedTeams.map(t => parseFloat(getField(t, 'poswonopponenthalf')) || 0)
 
     // Get min/max for normalization
@@ -284,31 +299,61 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
 
     return sortedTeams.map(team => {
       const ppda40 = parseFloat(getField(team, 'ppda40')) || 0
-      const ourAvgSeq = parseFloat(getField(team, 'our_avg_sequence_time')) || 0
-      const ourLongBall = parseFloat(getField(team, 'our_long_ball_percentage')) || 0
-      const ourA1ToA2A3 = parseFloat(getField(team, 'our_a1_to_a2_a3_percentage')) || 0
+      const ourAvgSeq = parseFloat(getField(team, avgSeqField)) || 0
+      const ourLongBall = parseFloat(getField(team, longBallField)) || 0
+      const ourA1ToA2A3 = calcA1ToA2A3(team)
       const posWon = parseFloat(getField(team, 'poswonopponenthalf')) || 0
 
-      // Calculate proportional scores (1-100)
-      // ppda40 (against our team) → lower is better (opponent can't build)
-      const ppda40Score = ppda40Max > ppda40Min ?
-        ((ppda40Max - ppda40) / (ppda40Max - ppda40Min)) * 99 + 1 : 50
+      let ppda40Score, ourAvgSeqScore, ourLongBallScore, ourA1ToA2A3Score, posWonScore
 
-      // AvgSeqTime (our team) → lower is better (we move ball quickly)
-      const ourAvgSeqScore = ourAvgSeqMax > ourAvgSeqMin ?
-        ((ourAvgSeqMax - ourAvgSeq) / (ourAvgSeqMax - ourAvgSeqMin)) * 99 + 1 : 50
+      if (isOpponentAnalysis) {
+        // OPPONENT VIEW: Measure how WE are being pressed (defensive resistance)
+        // Lower scores = better for us = green | Higher scores = worse for us = red
 
-      // LongBall% → higher value = higher score (worse for us, shows red with inverted colors)
-      const ourLongBallScore = ourLongBallMax > ourLongBallMin ?
-        ((ourLongBall - ourLongBallMin) / (ourLongBallMax - ourLongBallMin)) * 99 + 1 : 50
+        // ppda40 → lower is better (opponent can't build against us)
+        ppda40Score = ppda40Max > ppda40Min ?
+          ((ppda40Max - ppda40) / (ppda40Max - ppda40Min)) * 99 + 1 : 50
 
-      // A1→A2+A3 → lower is better (we don't get stuck in our third)
-      const ourA1ToA2A3Score = ourA1ToA2A3Max > ourA1ToA2A3Min ?
-        ((ourA1ToA2A3Max - ourA1ToA2A3) / (ourA1ToA2A3Max - ourA1ToA2A3Min)) * 99 + 1 : 50
+        // AvgSeqTime → lower is better (we move ball quickly under their press)
+        ourAvgSeqScore = ourAvgSeqMax > ourAvgSeqMin ?
+          ((ourAvgSeqMax - ourAvgSeq) / (ourAvgSeqMax - ourAvgSeqMin)) * 99 + 1 : 50
 
-      // חילוצי כדור בחצי היריבה (against our team) → higher is better (opponent wins ball in our half)
-      const posWonScore = posWonMax > posWonMin ?
-        ((posWon - posWonMin) / (posWonMax - posWonMin)) * 99 + 1 : 50
+        // LongBall% → higher % = higher score = worse (forced to play long)
+        ourLongBallScore = ourLongBallMax > ourLongBallMin ?
+          ((ourLongBall - ourLongBallMin) / (ourLongBallMax - ourLongBallMin)) * 99 + 1 : 50
+
+        // A1→A2+A3 → higher % = lower score = better (we progress from A1 to A2+A3)
+        ourA1ToA2A3Score = ourA1ToA2A3Max > ourA1ToA2A3Min ?
+          ((ourA1ToA2A3Max - ourA1ToA2A3) / (ourA1ToA2A3Max - ourA1ToA2A3Min)) * 99 + 1 : 50
+
+        // posWon → higher = higher score = worse (opponent wins ball in our half)
+        posWonScore = posWonMax > posWonMin ?
+          ((posWon - posWonMin) / (posWonMax - posWonMin)) * 99 + 1 : 50
+
+      } else {
+        // MATCHDAY WIZARD: Measure how EACH TEAM presses (offensive press quality)
+        // Higher scores = better press = green | Lower scores = worse press = red
+
+        // ppda40 → lower is better press (opponent can't build)
+        ppda40Score = ppda40Max > ppda40Min ?
+          ((ppda40Max - ppda40) / (ppda40Max - ppda40Min)) * 99 + 1 : 50
+
+        // AvgSeqTime (opponent) → lower is better (opponent moves ball quickly = bad press)
+        ourAvgSeqScore = ourAvgSeqMax > ourAvgSeqMin ?
+          ((ourAvgSeqMax - ourAvgSeq) / (ourAvgSeqMax - ourAvgSeqMin)) * 99 + 1 : 50
+
+        // LongBall% (opponent) → higher is better (we force opponent to play long)
+        ourLongBallScore = ourLongBallMax > ourLongBallMin ?
+          ((ourLongBall - ourLongBallMin) / (ourLongBallMax - ourLongBallMin)) * 99 + 1 : 50
+
+        // A1→A2+A3 (opponent) → lower is better (opponent stuck in their third, can't progress)
+        ourA1ToA2A3Score = ourA1ToA2A3Max > ourA1ToA2A3Min ?
+          ((ourA1ToA2A3Max - ourA1ToA2A3) / (ourA1ToA2A3Max - ourA1ToA2A3Min)) * 99 + 1 : 50
+
+        // posWon → higher is better (we win ball in opponent half)
+        posWonScore = posWonMax > posWonMin ?
+          ((posWon - posWonMin) / (posWonMax - posWonMin)) * 99 + 1 : 50
+      }
 
       // Weighted press score calculation
       // ppda40 → 30%, AvgSeqTime → 10%, LongBall% → 10%, חילוצי יריבה → 20%, A1→A2+A3 → 30%
@@ -682,10 +727,10 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                   <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888' }}>TEAM</th>
                   <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PRESS<br/>SCORE</th>
                   <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888' }}>PPDA40<br/>(30%)</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>AvgSeqTime<br/>(10%)</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>LongBall%<br/>(10%)</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>חילוצי יריבה<br/>(20%)</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>A1→A2+A3<br/>(30%)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>AvgSeqTime {isOpponentAnalysis ? '' : '(opp)'}<br/>(10%)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>LongBall% {isOpponentAnalysis ? '' : '(opp)'}<br/>(10%)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>Ball Recovery Opp Half<br/>(20%)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', color: '#888', fontSize: '9px' }}>A1→A2+A3 {isOpponentAnalysis ? '' : '(opp)'}<br/>(30%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -728,12 +773,12 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                             <div style={{
                               width: `${team.pressScore}%`,
                               height: '100%',
-                              background: getPressScoreColor(team.pressScore),
+                              background: isOpponentAnalysis ? getPressScoreColor(team.pressScore) : getScoreColor(team.pressScore),
                               borderRadius: '6px'
                             }} />
                           </div>
                           <span style={{
-                            color: getPressScoreColor(team.pressScore),
+                            color: isOpponentAnalysis ? getPressScoreColor(team.pressScore) : getScoreColor(team.pressScore),
                             fontSize: '9px',
                             fontWeight: '600'
                           }}>
@@ -744,7 +789,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                       <td style={{
                         padding: '8px 12px',
                         textAlign: 'center',
-                        color: getPressScoreColor(team.ppda40Score),
+                        color: isOpponentAnalysis ? getPressScoreColor(team.ppda40Score) : getScoreColor(team.ppda40Score),
                         fontWeight: '600'
                       }}>
                         {parseFloat(getField(team, 'ppda40') || 0).toFixed(2)} ({team.ppda40Score.toFixed(0)})
@@ -752,23 +797,23 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                       <td style={{
                         padding: '8px 12px',
                         textAlign: 'center',
-                        color: getPressScoreColor(team.ourAvgSeqScore),
+                        color: isOpponentAnalysis ? getPressScoreColor(team.ourAvgSeqScore) : getScoreColor(team.ourAvgSeqScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, 'our_avg_sequence_time') || 0).toFixed(1)}s ({team.ourAvgSeqScore.toFixed(0)})
+                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_avg_sequence_time' : 'opp_avg_sequence_time') || 0).toFixed(1)}s ({team.ourAvgSeqScore.toFixed(0)})
                       </td>
                       <td style={{
                         padding: '8px 12px',
                         textAlign: 'center',
-                        color: getPressScoreColor(team.ourLongBallScore),
+                        color: isOpponentAnalysis ? getPressScoreColor(team.ourLongBallScore) : getScoreColor(team.ourLongBallScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, 'our_long_ball_percentage') || 0).toFixed(1)}% ({team.ourLongBallScore.toFixed(0)})
+                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_long_ball_percentage' : 'opp_long_ball_percentage') || 0).toFixed(1)}% ({team.ourLongBallScore.toFixed(0)})
                       </td>
                       <td style={{
                         padding: '8px 12px',
                         textAlign: 'center',
-                        color: getPressScoreColor(team.posWonScore),
+                        color: isOpponentAnalysis ? getPressScoreColor(team.posWonScore) : getScoreColor(team.posWonScore),
                         fontWeight: '600'
                       }}>
                         {getField(team, 'poswonopponenthalf') || 0} ({team.posWonScore.toFixed(0)})
@@ -776,10 +821,19 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                       <td style={{
                         padding: '8px 12px',
                         textAlign: 'center',
-                        color: getPressScoreColor(team.ourA1ToA2A3Score),
+                        color: isOpponentAnalysis ? getPressScoreColor(team.ourA1ToA2A3Score) : getScoreColor(team.ourA1ToA2A3Score),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, 'our_a1_to_a2_a3_percentage') || 0).toFixed(1)}% ({team.ourA1ToA2A3Score.toFixed(0)})
+                        {(() => {
+                          const s1e3Field = isOpponentAnalysis ? 'our_s1e3' : 'opp_s1e3'
+                          const s1e2Field = isOpponentAnalysis ? 'our_s1e2' : 'opp_s1e2'
+                          const s1Field = isOpponentAnalysis ? 'our_s1' : 'opp_s1'
+                          const s1e3 = parseFloat(getField(team, s1e3Field)) || 0
+                          const s1e2 = parseFloat(getField(team, s1e2Field)) || 0
+                          const s1 = parseFloat(getField(team, s1Field)) || 0
+                          const percentage = s1 > 0 ? ((s1e3 + s1e2) / s1) * 100 : 0
+                          return `${percentage.toFixed(1)}% (${team.ourA1ToA2A3Score.toFixed(0)})`
+                        })()}
                       </td>
                     </tr>
                   )

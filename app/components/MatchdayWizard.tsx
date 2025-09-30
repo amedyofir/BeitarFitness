@@ -8,6 +8,7 @@ import { saveMatchGpsData, checkMatchweekExists, fetchAvailableMatchweeks } from
 import type { MatchGpsData, MatchMetadata } from '@/lib/matchGpsService'
 import { saveTeamMatchStatistics, parseTeamCsvRow, checkTeamMatchweekExists, fetchTeamMatchMetadata, fetchTeamMatchStatistics, saveAggregatedTeamStatistics, checkAggregatedDataExists } from '@/lib/teamMatchService'
 import type { TeamMatchStatistics, TeamMatchMetadata } from '@/lib/teamMatchService'
+import { parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
 
 interface MatchdayWizardProps {}
 
@@ -15,7 +16,10 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFile2, setCsvFile2] = useState<File | null>(null)
   const [csvData, setCsvData] = useState<any[]>([])
+  const [csvData1, setCsvData1] = useState<any[]>([])
+  const [csvData2, setCsvData2] = useState<any[]>([])
   const [showReport, setShowReport] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [opponent, setOpponent] = useState('')
@@ -173,42 +177,71 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
     }
   }
 
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCsv1Upload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'text/csv') {
       setCsvFile(file)
       setIsProcessing(true)
-      
+
       const reader = new FileReader()
       reader.onload = (e) => {
         const text = e.target?.result as string
-        
+
         // Parse CSV using Papa Parse
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            console.log('CSV parsing completed:', results.data)
-            
+            console.log('CSV 1 parsing completed:', results.data)
+
             // Detect data type based on column headers
             const headers = Object.keys(results.data[0] || {})
             const isTeamData = headers.includes('teamFullName') || headers.includes('Team') || headers.includes('teamId')
             const isPlayerData = headers.includes('Player') || headers.includes('player_name') || headers.includes('Minutes') || headers.includes('minutes_played')
-            
+
             if (isTeamData) {
               // Set data type based on upload mode
               setCsvDataType(uploadMode === 'aggregated' ? 'aggregated' : 'team')
               console.log(`Detected team statistics data - Mode: ${uploadMode === 'aggregated' ? 'aggregated' : 'individual'}`)
               // Process team data using the team service parsing function
               const processedData = results.data.map((row: any) => parseTeamCsvRow(row))
-              setCsvData(processedData)
+              setCsvData1(processedData)
+
+              // If CSV 2 is already uploaded, merge them (rename fields to opp_)
+              if (csvData2.length > 0) {
+                const merged = mergeOpponentStatistics(processedData, csvData2).map(team => {
+                  const {
+                    our_avg_sequence_time,
+                    our_long_ball_percentage,
+                    our_s1e3,
+                    our_s1e2,
+                    our_s1,
+                    our_a1_to_a2_a3_percentage, // Remove if exists
+                    opp_a1_to_a2_a3_percentage, // Remove if exists
+                    ...restTeam
+                  } = team as any
+
+                  console.log(`Team ${team.team_full_name}: s1e3=${our_s1e3}, s1e2=${our_s1e2}, s1=${our_s1}`)
+
+                  return {
+                    ...restTeam,
+                    opp_avg_sequence_time: our_avg_sequence_time,
+                    opp_long_ball_percentage: our_long_ball_percentage,
+                    opp_s1e3: our_s1e3,
+                    opp_s1e2: our_s1e2,
+                    opp_s1: our_s1
+                  }
+                })
+                setCsvData(merged)
+                setCurrentStep(3)
+              }
             } else if (isPlayerData) {
               setCsvDataType('player')
               console.log('Detected player GPS data')
               // Convert numeric strings to numbers for calculations (existing logic for player data)
               const processedData = results.data.map((row: any) => {
                 const processedRow: any = { ...row }
-                
+
                 // Convert numeric fields for player data
                 const numericFields = [
                   'Minutes', 'minutes_played', 'Distance', 'total_distance', 'HSR Distance', 'hsr_distance',
@@ -218,30 +251,59 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
                   'HMLD', 'hmld', 'DSL', 'dynamic_stress_load', 'Total Loading', 'total_loading',
                   'Fatigue Index', 'fatigue_index'
                 ]
-                
+
                 numericFields.forEach(field => {
                   if (processedRow[field] && !isNaN(parseFloat(processedRow[field]))) {
                     processedRow[field] = parseFloat(processedRow[field])
                   }
                 })
-                
+
                 return processedRow
               })
               setCsvData(processedData)
+              setCurrentStep(3) // Player data only needs one CSV
             } else {
               // Fallback - try to detect based on content
               setCsvDataType('team') // Default to team for the provided sample
               console.log('Could not detect data type, defaulting to team statistics')
               const processedData = results.data.map((row: any) => parseTeamCsvRow(row))
-              setCsvData(processedData)
+              setCsvData1(processedData)
+
+              // If CSV 2 is already uploaded, merge them (rename fields to opp_)
+              if (csvData2.length > 0) {
+                const merged = mergeOpponentStatistics(processedData, csvData2).map(team => {
+                  const {
+                    our_avg_sequence_time,
+                    our_long_ball_percentage,
+                    our_s1e3,
+                    our_s1e2,
+                    our_s1,
+                    our_a1_to_a2_a3_percentage, // Remove if exists
+                    opp_a1_to_a2_a3_percentage, // Remove if exists
+                    ...restTeam
+                  } = team as any
+
+                  console.log(`Team ${team.team_full_name}: s1e3=${our_s1e3}, s1e2=${our_s1e2}, s1=${our_s1}`)
+
+                  return {
+                    ...restTeam,
+                    opp_avg_sequence_time: our_avg_sequence_time,
+                    opp_long_ball_percentage: our_long_ball_percentage,
+                    opp_s1e3: our_s1e3,
+                    opp_s1e2: our_s1e2,
+                    opp_s1: our_s1
+                  }
+                })
+                setCsvData(merged)
+                setCurrentStep(3)
+              }
             }
-            
+
             setIsProcessing(false)
-            setCurrentStep(3)
           },
           error: (error: any) => {
-            console.error('Error parsing CSV:', error)
-            alert('Error parsing CSV file. Please check the file format.')
+            console.error('Error parsing CSV 1:', error)
+            alert('Error parsing CSV file 1. Please check the file format.')
             setIsProcessing(false)
           }
         })
@@ -249,6 +311,71 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
       reader.readAsText(file)
     }
   }
+
+  const handleCsv2Upload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type === 'text/csv') {
+      setCsvFile2(file)
+      setIsProcessing(true)
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const text = e.target?.result as string
+
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            console.log('CSV 2 parsing completed:', results.data)
+
+            // Process opponent metrics data
+            const processedData = results.data.map((row: any) => parseOurTeamMetricsCsvRow(row))
+            setCsvData2(processedData)
+
+            setIsProcessing(false)
+
+            // If CSV 1 is already uploaded, merge them (rename fields to opp_)
+            if (csvData1.length > 0) {
+              const merged = mergeOpponentStatistics(csvData1, processedData).map(team => {
+                const {
+                  our_avg_sequence_time,
+                  our_long_ball_percentage,
+                  our_s1e3,
+                  our_s1e2,
+                  our_s1,
+                  our_a1_to_a2_a3_percentage,
+                  opp_a1_to_a2_a3_percentage,
+                  ...restTeam
+                } = team as any
+
+                console.log(`CSV2-first: Team ${team.team_full_name}: s1e3=${our_s1e3}, s1e2=${our_s1e2}, s1=${our_s1}`)
+
+                return {
+                  ...restTeam,
+                  opp_avg_sequence_time: our_avg_sequence_time,
+                  opp_long_ball_percentage: our_long_ball_percentage,
+                  opp_s1e3: our_s1e3,
+                  opp_s1e2: our_s1e2,
+                  opp_s1: our_s1
+                }
+              })
+              setCsvData(merged)
+              setCurrentStep(3)
+            }
+          },
+          error: (error: any) => {
+            console.error('Error parsing CSV 2:', error)
+            alert('Error parsing CSV file 2. Please check the file format.')
+            setIsProcessing(false)
+          }
+        })
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  // Keep old handler name for compatibility
+  const handleCsvUpload = handleCsv1Upload
 
   const generateReport = async () => {
     setIsProcessing(true)
@@ -1098,55 +1225,184 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
               </div>
             )}
             
-            <div style={{
-              border: '2px dashed rgba(255, 215, 0, 0.3)',
-              borderRadius: '12px',
-              padding: '40px',
-              marginBottom: '30px',
-              background: 'rgba(255, 215, 0, 0.05)'
-            }}>
-              <Upload size={48} color="#FFD700" style={{ marginBottom: '16px' }} />
-              <p style={{ color: 'var(--primary-text)', marginBottom: '16px', fontFamily: 'Montserrat' }}>
-                Drag and drop your CSV file here, or click to browse
-              </p>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvUpload}
-                style={{ display: 'none' }}
-                id="csv-upload"
-              />
-              <label
-                htmlFor="csv-upload"
-                style={{
-                  background: 'linear-gradient(135deg, #FFD700, #FFA500)',
-                  color: '#000',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '6px',
-                  fontFamily: 'Montserrat',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  display: 'inline-block'
-                }}
-              >
-                Choose CSV File
-              </label>
-            </div>
-            
-            {csvFile && (
-              <div style={{
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '20px'
-              }}>
-                <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  ✓ {csvFile.name} uploaded successfully
-                </p>
-              </div>
+            {/* Show single CSV upload for player data, two CSVs for team data */}
+            {csvDataType === 'player' ? (
+              <>
+                <div style={{
+                  border: '2px dashed rgba(255, 215, 0, 0.3)',
+                  borderRadius: '12px',
+                  padding: '40px',
+                  marginBottom: '30px',
+                  background: 'rgba(255, 215, 0, 0.05)'
+                }}>
+                  <Upload size={48} color="#FFD700" style={{ marginBottom: '16px' }} />
+                  <p style={{ color: 'var(--primary-text)', marginBottom: '16px', fontFamily: 'Montserrat' }}>
+                    Drag and drop your CSV file here, or click to browse
+                  </p>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsvUpload}
+                    style={{ display: 'none' }}
+                    id="csv-upload"
+                  />
+                  <label
+                    htmlFor="csv-upload"
+                    style={{
+                      background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      color: '#000',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      fontFamily: 'Montserrat',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'inline-block'
+                    }}
+                  >
+                    Choose CSV File
+                  </label>
+                </div>
+
+                {csvFile && (
+                  <div style={{
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '20px'
+                  }}>
+                    <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
+                      ✓ {csvFile.name} uploaded successfully
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Two CSV uploads for team statistics */}
+                {csvData.length > 0 && (
+                  <div style={{
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}>
+                    <Users size={16} color="#22c55e" />
+                    <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
+                      ✓ Both CSVs merged successfully! ({csvData.length} teams)
+                    </p>
+                  </div>
+                )}
+
+                {/* CSV 1 Upload */}
+                <div style={{
+                  border: '2px dashed rgba(255, 215, 0, 0.3)',
+                  borderRadius: '12px',
+                  padding: '30px',
+                  marginBottom: '20px',
+                  background: 'rgba(255, 215, 0, 0.05)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                    <span style={{
+                      background: '#FFD700',
+                      color: '#000',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      fontFamily: 'Montserrat'
+                    }}>
+                      CSV 1
+                    </span>
+                  </div>
+                  <Upload size={36} color="#FFD700" style={{ marginBottom: '12px' }} />
+                  <p style={{ color: 'var(--primary-text)', marginBottom: '12px', fontFamily: 'Montserrat', fontSize: '14px' }}>
+                    Team Metrics (ppda40, poswonopponenthalf)
+                  </p>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsv1Upload}
+                    style={{ display: 'none' }}
+                    id="csv1-upload"
+                  />
+                  <label
+                    htmlFor="csv1-upload"
+                    style={{
+                      background: csvFile ? 'rgba(34, 197, 94, 0.3)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      color: csvFile ? '#22c55e' : '#000',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      fontFamily: 'Montserrat',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'inline-block'
+                    }}
+                  >
+                    {csvFile ? `✓ ${csvFile.name}` : 'Choose CSV File 1'}
+                  </label>
+                </div>
+
+                {/* CSV 2 Upload */}
+                <div style={{
+                  border: '2px dashed rgba(255, 215, 0, 0.3)',
+                  borderRadius: '12px',
+                  padding: '30px',
+                  marginBottom: '30px',
+                  background: 'rgba(255, 215, 0, 0.05)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                    <span style={{
+                      background: '#FFD700',
+                      color: '#000',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      fontFamily: 'Montserrat'
+                    }}>
+                      CSV 2
+                    </span>
+                  </div>
+                  <Upload size={36} color="#FFD700" style={{ marginBottom: '12px' }} />
+                  <p style={{ color: 'var(--primary-text)', marginBottom: '12px', fontFamily: 'Montserrat', fontSize: '14px' }}>
+                    Opponent Metrics (AvgSeqTime, LongBall%, S1E2, S1E3, s1)
+                  </p>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsv2Upload}
+                    style={{ display: 'none' }}
+                    id="csv2-upload"
+                  />
+                  <label
+                    htmlFor="csv2-upload"
+                    style={{
+                      background: csvFile2 ? 'rgba(34, 197, 94, 0.3)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      color: csvFile2 ? '#22c55e' : '#000',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      fontFamily: 'Montserrat',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'inline-block'
+                    }}
+                  >
+                    {csvFile2 ? `✓ ${csvFile2.name}` : 'Choose CSV File 2'}
+                  </label>
+                </div>
+              </>
             )}
           </div>
         )}

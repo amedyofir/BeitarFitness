@@ -1,0 +1,877 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { Users, Target, BarChart3, Download, Settings, Eye, Grid3X3, Grid, Zap, Loader2, Shield } from 'lucide-react'
+import { fetchAllPlayersForMatchup, calculateUnitTotals, type MatchupPlayer, type PlayerUnit } from '@/lib/playerService'
+import { testOptaLeaguePlayersTable } from '@/lib/testOptaData'
+import SoccerPitch from './SoccerPitch'
+
+type Player = MatchupPlayer
+type ComparisonMode = '1v1' | 'unit-vs-unit' | 'side-vs-side'
+type SelectedUnit = PlayerUnit | 'total'
+
+export default function MatchupAnalysis() {
+  const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([])
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('1v1')
+  const [selectedUnit, setSelectedUnit] = useState<SelectedUnit>('midfield')
+  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([])
+  const [loadingPlayers, setLoadingPlayers] = useState(true)
+  const [playerError, setPlayerError] = useState<string | null>(null)
+  const [showStatsPanel, setShowStatsPanel] = useState(false)
+  const [teamFilter, setTeamFilter] = useState<string>('all')
+  const [positionFilter, setPositionFilter] = useState<string>('all')
+  const [showPitch, setShowPitch] = useState(true)
+  const [leftTeam, setLeftTeam] = useState<string>('Beitar Jerusalem')
+  const [rightTeam, setRightTeam] = useState<string>('')
+  const [assignedPositions, setAssignedPositions] = useState<{[key: string]: MatchupPlayer | null}>({})
+  const [isAssignmentMode, setIsAssignmentMode] = useState(false)
+
+  // Fetch players on component mount
+  useEffect(() => {
+    const loadPlayers = async () => {
+      try {
+        setLoadingPlayers(true)
+        setPlayerError(null)
+
+        // First test the opta_league_players table access
+        console.log('🔍 Testing opta_league_players table access...')
+        await testOptaLeaguePlayersTable()
+
+        // Then try to fetch the actual players
+        console.log('🚀 Fetching players for matchup...')
+        const players = await fetchAllPlayersForMatchup()
+        console.log('✅ Players loaded successfully:', players.length)
+
+        setAvailablePlayers(players)
+      } catch (err) {
+        console.error('❌ Error loading players for matchup:', err)
+        setPlayerError(`Failed to load player data: ${err instanceof Error ? err.message : 'Unknown error'}`)
+
+        // Set fallback data
+        console.log('🔄 Using fallback data...')
+        setAvailablePlayers([
+          { id: 'fallback_1', name: 'Ben Lederman', position: 'CM', unit: 'midfield', team: 'beitar', stats: { duels: 65, passes: 88, intensity: 72, xG: 0.15, distance: 11200 }},
+          { id: 'fallback_2', name: 'David Silva', position: 'ST', unit: 'attack', team: 'opponent', stats: { duels: 52, passes: 78, intensity: 82, xG: 0.45, distance: 10200 }},
+          { id: 'fallback_3', name: 'Yarden Gattegno', position: 'GK', unit: 'goalkeeper', team: 'beitar', stats: { duels: 15, passes: 65, intensity: 35, xG: 0.01, distance: 3500 }},
+        ])
+      } finally {
+        setLoadingPlayers(false)
+      }
+    }
+
+    loadPlayers()
+  }, [])
+
+  const handlePlayerClick = (player: Player) => {
+    if (comparisonMode === '1v1') {
+      const otherTeam = player.team === 'beitar' ? 'opponent' : 'beitar'
+      const currentFromOtherTeam = selectedPlayers.find(p => p.team === otherTeam)
+      const currentFromSameTeam = selectedPlayers.find(p => p.team === player.team)
+
+      let newSelection = []
+      if (currentFromSameTeam) {
+        newSelection = selectedPlayers.filter(p => p.team !== player.team)
+        newSelection.push(player)
+      } else {
+        newSelection = [...selectedPlayers.filter(p => p.team === otherTeam), player]
+      }
+
+      setSelectedPlayers(newSelection.slice(0, 2))
+      if (newSelection.length === 2) {
+        setShowStatsPanel(true)
+      }
+    }
+  }
+
+  const handleUnitComparison = () => {
+    if (comparisonMode === 'unit-vs-unit') {
+      const beitarUnitPlayers = availablePlayers.filter(p => p.team === 'beitar' && p.unit === selectedUnit)
+      const opponentUnitPlayers = availablePlayers.filter(p => p.team === 'opponent' && p.unit === selectedUnit)
+
+      if (beitarUnitPlayers.length > 0 && opponentUnitPlayers.length > 0) {
+        const beitarTotal = calculateUnitTotals(beitarUnitPlayers)
+        const opponentTotal = calculateUnitTotals(opponentUnitPlayers)
+        setSelectedPlayers([beitarTotal, opponentTotal])
+        setShowStatsPanel(true)
+      }
+    }
+  }
+
+  const getUnitsWithPlayers = (team: 'beitar' | 'opponent') => {
+    const units: { [key in PlayerUnit]: Player[] } = {
+      goalkeeper: [],
+      defense: [],
+      midfield: [],
+      attack: []
+    }
+
+    availablePlayers.filter(p => p.team === team).forEach(player => {
+      units[player.unit].push(player)
+    })
+
+    return units
+  }
+
+  const getUnitIcon = (unit: PlayerUnit) => {
+    switch (unit) {
+      case 'goalkeeper': return <Shield size={16} />
+      case 'defense': return <Grid3X3 size={16} />
+      case 'midfield': return <Target size={16} />
+      case 'attack': return <Zap size={16} />
+      default: return <Target size={16} />
+    }
+  }
+
+  const getUnitColor = (unit: PlayerUnit) => {
+    switch (unit) {
+      case 'goalkeeper': return '#10b981' // emerald
+      case 'defense': return '#3b82f6' // blue
+      case 'midfield': return '#f59e0b' // amber
+      case 'attack': return '#ef4444' // red
+      default: return '#f59e0b' // amber default
+    }
+  }
+
+  const getFilteredPlayers = () => {
+    let filtered = availablePlayers
+
+    // Apply team filter
+    if (teamFilter !== 'all') {
+      filtered = filtered.filter(p => p.actual_team_name === teamFilter)
+    }
+
+    // Apply position filter
+    if (positionFilter !== 'all') {
+      filtered = filtered.filter(p => p.position === positionFilter)
+    }
+
+    return filtered
+  }
+
+  const getUniquePositions = () => {
+    const positions = availablePlayers
+      .map(p => p.position)
+      .filter(p => p && p !== 'Unknown')
+    return [...new Set(positions)].sort()
+  }
+
+  const getUniqueTeamNames = () => {
+    const teamNames = availablePlayers
+      .map(p => p.actual_team_name)
+      .filter(t => t && t !== 'Unknown Team')
+    return [...new Set(teamNames)].sort()
+  }
+
+  const handlePlayerAssignment = (positionKey: string, player: MatchupPlayer | null) => {
+    setAssignedPositions(prev => ({
+      ...prev,
+      [positionKey]: player
+    }))
+  }
+
+  const getPlayersForTeam = (teamName: string) => {
+    return availablePlayers.filter(p => p.actual_team_name === teamName)
+  }
+
+  const clearAllAssignments = () => {
+    setAssignedPositions({})
+  }
+
+  const toggleAssignmentMode = () => {
+    setIsAssignmentMode(!isAssignmentMode)
+    if (!isAssignmentMode) {
+      clearAllAssignments()
+    }
+  }
+
+  // Show loading state
+  if (loadingPlayers) {
+    return (
+      <div style={{
+        height: '100vh',
+        background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <Loader2 size={48} className="animate-spin" style={{ color: '#FFD700' }} />
+        <p style={{ fontFamily: 'Montserrat', fontSize: '18px', fontWeight: '600' }}>
+          Loading players from opta_league_players...
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      height: '100vh',
+      background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+      color: '#fff',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Top Toolbar */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px 24px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 215, 0, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#FFD700' }}>
+            Matchup Analysis
+          </h2>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[
+              { mode: '1v1', label: '1v1', Icon: Users },
+              { mode: 'unit-vs-unit', label: 'Unit vs Unit', Icon: BarChart3 },
+              { mode: 'side-vs-side', label: 'Side vs Side', Icon: Target }
+            ].map(({ mode, label, Icon }) => (
+              <button
+                key={mode}
+                onClick={() => setComparisonMode(mode as ComparisonMode)}
+                style={{
+                  background: comparisonMode === mode
+                    ? 'linear-gradient(135deg, #FFD700, #FFA500)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                  color: comparisonMode === mode ? '#000' : '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Icon size={14} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Unit Selector for Unit vs Unit mode */}
+          {comparisonMode === 'unit-vs-unit' && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {(['goalkeeper', 'defense', 'midfield', 'attack'] as PlayerUnit[]).map((unit) => (
+                <button
+                  key={unit}
+                  onClick={() => setSelectedUnit(unit)}
+                  style={{
+                    background: selectedUnit === unit
+                      ? getUnitColor(unit)
+                      : 'rgba(255, 255, 255, 0.1)',
+                    color: selectedUnit === unit ? '#fff' : '#888',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    textTransform: 'capitalize'
+                  }}
+                >
+                  {getUnitIcon(unit)}
+                  {unit}
+                </button>
+              ))}
+              <button
+                onClick={handleUnitComparison}
+                style={{
+                  background: 'rgba(34, 197, 94, 0.2)',
+                  color: '#22c55e',
+                  border: '1px solid rgba(34, 197, 94, 0.4)',
+                  borderRadius: '4px',
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Compare
+              </button>
+            </div>
+          )}
+
+          <button
+            style={{
+              background: 'rgba(59, 130, 246, 0.1)',
+              color: '#3b82f6',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Download size={14} />
+            Export
+          </button>
+
+          <button
+            onClick={() => setShowPitch(!showPitch)}
+            style={{
+              background: showPitch ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
+              color: '#22c55e',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Grid size={14} />
+            {showPitch ? 'Hide' : 'Show'} Pitch
+          </button>
+
+          <button
+            onClick={toggleAssignmentMode}
+            style={{
+              background: isAssignmentMode
+                ? 'rgba(34, 197, 94, 0.2)'
+                : 'rgba(255, 215, 0, 0.1)',
+              color: isAssignmentMode ? '#22c55e' : '#FFD700',
+              border: `1px solid ${isAssignmentMode ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 215, 0, 0.3)'}`,
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Users size={14} />
+            {isAssignmentMode ? 'Exit Assignment' : 'Team Assignment'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', height: 'calc(100vh - 100px)', minHeight: '600px' }}>
+        {/* Player Roster Sidebar */}
+        <div style={{
+          width: '300px',
+          background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(10px)',
+          padding: '20px',
+          borderRight: '1px solid rgba(255, 215, 0, 0.2)',
+          overflowY: 'auto'
+        }}>
+          {/* Error message display */}
+          {playerError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              marginBottom: '16px',
+              fontSize: '12px',
+              color: '#fca5a5'
+            }}>
+              ⚠️ {playerError}
+              <button
+                onClick={async () => {
+                  console.log('🔧 Manual debug test...')
+                  await testOptaLeaguePlayersTable()
+                }}
+                style={{
+                  marginLeft: '8px',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  color: '#fca5a5',
+                  cursor: 'pointer'
+                }}
+              >
+                Debug
+              </button>
+            </div>
+          )}
+
+          {/* Debug info */}
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '6px',
+            padding: '8px 12px',
+            marginBottom: '16px',
+            fontSize: '12px',
+            color: '#93c5fd'
+          }}>
+            📊 Players loaded: {availablePlayers.length} |
+            Beitar: {availablePlayers.filter(p => p.team === 'beitar').length} |
+            Opponent: {availablePlayers.filter(p => p.team === 'opponent').length}
+            <br />
+            🔍 Filtered: {getFilteredPlayers().length} players
+            <br />
+            🔍 Check browser console for detailed logs
+          </div>
+
+          {/* Filters Section */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '20px',
+            border: '1px solid rgba(255, 215, 0, 0.2)'
+          }}>
+            <h4 style={{
+              color: '#FFD700',
+              fontSize: '14px',
+              fontWeight: '600',
+              marginBottom: '12px',
+              margin: '0 0 12px 0'
+            }}>
+              🔍 Filters
+            </h4>
+
+            {/* Team Filter */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '12px',
+                color: '#cbd5e1',
+                marginBottom: '6px'
+              }}>
+                Team:
+              </label>
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '4px',
+                  padding: '6px 8px',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+              >
+                <option value="all">All Teams</option>
+                {getUniqueTeamNames().map(teamName => (
+                  <option key={teamName} value={teamName}>
+                    {teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Position Filter */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '12px',
+                color: '#cbd5e1',
+                marginBottom: '6px'
+              }}>
+                Position:
+              </label>
+              <select
+                value={positionFilter}
+                onChange={(e) => setPositionFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '4px',
+                  padding: '6px 8px',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+              >
+                <option value="all">All Positions</option>
+                {getUniquePositions().map(position => (
+                  <option key={position} value={position}>
+                    {position}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Beitar Players by Unit */}
+          <h3 style={{ color: '#FFD700', marginBottom: '16px', fontSize: '18px' }}>
+            🟡 Beitar Jerusalem
+          </h3>
+
+          {(['goalkeeper', 'defense', 'midfield', 'attack'] as PlayerUnit[]).map(unit => {
+            const filteredPlayers = getFilteredPlayers()
+            const unitPlayers = filteredPlayers.filter(p => p.team === 'beitar' && p.unit === unit)
+            if (unitPlayers.length === 0) return null
+
+            return (
+              <div key={unit} style={{ marginBottom: '20px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: getUnitColor(unit),
+                  textTransform: 'capitalize'
+                }}>
+                  {getUnitIcon(unit)}
+                  {unit} ({unitPlayers.length})
+                </div>
+
+                {unitPlayers.map((player) => (
+                  <div
+                    key={player.id}
+                    onClick={() => handlePlayerClick(player)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      marginBottom: '6px',
+                      background: selectedPlayers.find(p => p.id === player.id)
+                        ? 'rgba(255, 215, 0, 0.2)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: selectedPlayers.find(p => p.id === player.id)
+                        ? '1px solid #FFD700'
+                        : '1px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: player.photo ? 'transparent' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: '#000',
+                      overflow: 'hidden'
+                    }}>
+                      {player.photo ? (
+                        <img
+                          src={player.photo}
+                          alt={player.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        player.name.split(' ').map(n => n[0]).join('')
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>
+                        {player.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#888' }}>
+                        {player.position} • {Math.round(player.stats.duels)}% duels
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+
+          {/* Opponent Players by Unit */}
+          <h3 style={{ color: '#888', marginBottom: '16px', fontSize: '18px', marginTop: '24px' }}>
+            ⚪ Opponent Team
+          </h3>
+
+          {(['goalkeeper', 'defense', 'midfield', 'attack'] as PlayerUnit[]).map(unit => {
+            const filteredPlayers = getFilteredPlayers()
+            const unitPlayers = filteredPlayers.filter(p => p.team === 'opponent' && p.unit === unit)
+            if (unitPlayers.length === 0) return null
+
+            return (
+              <div key={unit} style={{ marginBottom: '20px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: getUnitColor(unit),
+                  textTransform: 'capitalize'
+                }}>
+                  {getUnitIcon(unit)}
+                  {unit} ({unitPlayers.length})
+                </div>
+
+                {unitPlayers.map((player) => (
+                  <div
+                    key={player.id}
+                    onClick={() => handlePlayerClick(player)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      marginBottom: '6px',
+                      background: selectedPlayers.find(p => p.id === player.id)
+                        ? 'rgba(156, 163, 175, 0.2)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: selectedPlayers.find(p => p.id === player.id)
+                        ? '1px solid #9ca3af'
+                        : '1px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: player.photo ? 'transparent' : 'linear-gradient(135deg, #9ca3af, #6b7280)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: '#fff',
+                      overflow: 'hidden'
+                    }}>
+                      {player.photo ? (
+                        <img
+                          src={player.photo}
+                          alt={player.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        player.name.split(' ').map(n => n[0]).join('')
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>
+                        {player.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#888' }}>
+                        {player.position} • {Math.round(player.stats.duels)}% duels
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Main Content Area - Unified Pitch View */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          height: '100%'
+        }}>
+          <SoccerPitch
+            beitarPlayers={availablePlayers.filter(p => p.team === 'beitar')}
+            opponentPlayers={teamFilter === 'all'
+              ? availablePlayers.filter(p => p.team === 'opponent')
+              : availablePlayers.filter(p => p.actual_team_name === teamFilter && p.team === 'opponent')}
+            selectedTeams={[teamFilter]}
+            selectedPlayers={selectedPlayers}
+            comparisonMode={comparisonMode}
+            selectedUnit={selectedUnit !== 'total' ? selectedUnit as PlayerUnit : undefined}
+            isAssignmentMode={isAssignmentMode}
+            assignedPositions={assignedPositions}
+            onPlayerAssignment={handlePlayerAssignment}
+            leftTeam={leftTeam}
+            rightTeam={rightTeam}
+          />
+        </div>
+
+        {/* Stats Panel */}
+        {showStatsPanel && selectedPlayers.length === 2 && (
+          <div style={{
+            width: '350px',
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(10px)',
+            padding: '20px',
+            borderLeft: '1px solid rgba(255, 215, 0, 0.2)',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#FFD700' }}>
+                Statistical Comparison
+              </h3>
+              <button
+                onClick={() => setShowStatsPanel(false)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Player/Unit Names */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#FFD700' }}>
+                  {selectedPlayers[0].name}
+                </div>
+                <div style={{ fontSize: '12px', color: '#888' }}>
+                  {selectedPlayers[0].position}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#9ca3af' }}>
+                  {selectedPlayers[1].name}
+                </div>
+                <div style={{ fontSize: '12px', color: '#888' }}>
+                  {selectedPlayers[1].position}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Comparison */}
+            <div style={{ marginBottom: '20px' }}>
+              {Object.entries(selectedPlayers[0].stats).map(([key]) => {
+                const player1Value = selectedPlayers[0].stats[key as keyof Player['stats']]
+                const player2Value = selectedPlayers[1].stats[key as keyof Player['stats']]
+                const maxValue = Math.max(player1Value, player2Value)
+
+                return (
+                  <div key={key} style={{ marginBottom: '16px' }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '8px'
+                    }}>
+                      <span style={{ fontSize: '14px', color: '#fff', textTransform: 'capitalize' }}>
+                        {key}
+                      </span>
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <span style={{
+                          color: player1Value === maxValue ? '#FFD700' : '#888',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}>
+                          {typeof player1Value === 'number' && player1Value < 1
+                            ? player1Value.toFixed(2)
+                            : Math.round(player1Value).toLocaleString()}
+                          {key.includes('intensity') || key.includes('duels') || key.includes('passes') ? '%' : ''}
+                        </span>
+                        <span style={{
+                          color: player2Value === maxValue ? '#9ca3af' : '#666',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}>
+                          {typeof player2Value === 'number' && player2Value < 1
+                            ? player2Value.toFixed(2)
+                            : Math.round(player2Value).toLocaleString()}
+                          {key.includes('intensity') || key.includes('duels') || key.includes('passes') ? '%' : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      gap: '4px',
+                      height: '6px'
+                    }}>
+                      <div style={{
+                        flex: player1Value,
+                        background: 'linear-gradient(90deg, #FFD700, #FFA500)',
+                        borderRadius: '3px 0 0 3px'
+                      }} />
+                      <div style={{
+                        flex: player2Value,
+                        background: 'linear-gradient(90deg, #9ca3af, #6b7280)',
+                        borderRadius: '0 3px 3px 0'
+                      }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{
+              padding: '16px',
+              background: 'rgba(34, 197, 94, 0.1)',
+              borderRadius: '8px',
+              border: '1px solid rgba(34, 197, 94, 0.2)'
+            }}>
+              <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: '600', marginBottom: '8px' }}>
+                💡 Tactical Insight
+              </div>
+              <div style={{ fontSize: '14px', color: '#fff', lineHeight: '1.4' }}>
+                {selectedPlayers[0].position === 'UNIT'
+                  ? `Unit comparison: ${selectedPlayers[0].stats.duels > selectedPlayers[1].stats.duels
+                      ? `Beitar's ${selectedPlayers[0].unit} unit has superior duel success`
+                      : `Opponent's ${selectedPlayers[1].unit} unit dominates in physical battles`}`
+                  : selectedPlayers[0].stats.duels > selectedPlayers[1].stats.duels
+                    ? `${selectedPlayers[0].name} wins more duels and could dominate this matchup`
+                    : `${selectedPlayers[1].name} has the edge in physical battles`
+                }
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
