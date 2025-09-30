@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Upload, FileText, PlayCircle, CheckCircle, AlertCircle, Users, Target } from 'lucide-react'
 import Papa from 'papaparse'
 import MatchdayReport from './MatchdayReport'
-import { saveOpponentStatistics, fetchAvailableOpponents, fetchOpponentStatistics, checkOpponentDataExists, parseOpponentCsvRow } from '@/lib/opponentDataService'
+import { saveOpponentStatistics, fetchAvailableOpponents, fetchOpponentStatistics, checkOpponentDataExists, parseOpponentCsvRow, parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
 import type { OpponentStatistics, OpponentMetadata } from '@/lib/opponentDataService'
 
 interface OpponentViewProps {}
@@ -12,7 +12,10 @@ interface OpponentViewProps {}
 export default function OpponentView({}: OpponentViewProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [opponentName, setOpponentName] = useState('')
-  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFile1, setCsvFile1] = useState<File | null>(null)
+  const [csvFile2, setCsvFile2] = useState<File | null>(null)
+  const [csvData1, setCsvData1] = useState<any[]>([])
+  const [csvData2, setCsvData2] = useState<any[]>([])
   const [csvData, setCsvData] = useState<any[]>([])
   const [showReport, setShowReport] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -72,33 +75,80 @@ export default function OpponentView({}: OpponentViewProps) {
     }
   }
 
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCsv1Upload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'text/csv') {
-      setCsvFile(file)
+      setCsvFile1(file)
       setIsProcessing(true)
-      
+
       const reader = new FileReader()
       reader.onload = (e) => {
         const text = e.target?.result as string
-        
+
         // Parse CSV using Papa Parse
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            console.log('Opponent CSV parsing completed:', results.data)
-            
+            console.log('Opponent CSV 1 parsing completed:', results.data)
+
             // Process opponent data using the opponent service parsing function
             const processedData = results.data.map((row: any) => parseOpponentCsvRow(row))
-            setCsvData(processedData)
-            
+            setCsvData1(processedData)
+
             setIsProcessing(false)
-            setCurrentStep(3)
+
+            // If both CSVs are uploaded, merge and move to next step
+            if (csvData2.length > 0) {
+              const merged = mergeOpponentStatistics(processedData, csvData2)
+              setCsvData(merged)
+              setCurrentStep(3)
+            }
           },
           error: (error: any) => {
-            console.error('Error parsing CSV:', error)
-            alert('Error parsing CSV file. Please check the file format.')
+            console.error('Error parsing CSV 1:', error)
+            alert('Error parsing CSV file 1. Please check the file format.')
+            setIsProcessing(false)
+          }
+        })
+      }
+      reader.readAsText(file)
+    }
+  }
+
+  const handleCsv2Upload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type === 'text/csv') {
+      setCsvFile2(file)
+      setIsProcessing(true)
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const text = e.target?.result as string
+
+        // Parse CSV using Papa Parse
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            console.log('Our Team Metrics CSV 2 parsing completed:', results.data)
+
+            // Process our team metrics data
+            const processedData = results.data.map((row: any) => parseOurTeamMetricsCsvRow(row))
+            setCsvData2(processedData)
+
+            setIsProcessing(false)
+
+            // If both CSVs are uploaded, merge and move to next step
+            if (csvData1.length > 0) {
+              const merged = mergeOpponentStatistics(csvData1, processedData)
+              setCsvData(merged)
+              setCurrentStep(3)
+            }
+          },
+          error: (error: any) => {
+            console.error('Error parsing CSV 2:', error)
+            alert('Error parsing CSV file 2. Please check the file format.')
             setIsProcessing(false)
           }
         })
@@ -124,10 +174,10 @@ export default function OpponentView({}: OpponentViewProps) {
       const opponentMetadata: OpponentMetadata = {
         opponent_name: opponentName,
         season: '2025-2026',
-        csv_filename: csvFile?.name || '',
+        csv_filename: `${csvFile1?.name || 'file1.csv'} + ${csvFile2?.name || 'file2.csv'}`,
         total_teams: opponentData.length,
         total_matchdays: totalMatchdays,
-        notes: `Aggregated opponent analysis for ${opponentName} across ${totalMatchdays} matchdays`
+        notes: `Aggregated opponent analysis for ${opponentName} across ${totalMatchdays} matchdays (2 CSV files merged)`
       }
 
       // Save opponent data to Supabase (overwrites existing)
@@ -155,7 +205,10 @@ export default function OpponentView({}: OpponentViewProps) {
   const resetWizard = () => {
     setCurrentStep(1)
     setOpponentName('')
-    setCsvFile(null)
+    setCsvFile1(null)
+    setCsvFile2(null)
+    setCsvData1([])
+    setCsvData2([])
     setCsvData([])
     setIsProcessing(false)
     setShowReport(false)
@@ -550,16 +603,16 @@ export default function OpponentView({}: OpponentViewProps) {
           </div>
         )}
 
-        {/* Step 2: Upload CSV */}
+        {/* Step 2: Upload CSVs */}
         {currentStep === 2 && (
           <div style={{ textAlign: 'center' }}>
             <h3 style={{ color: 'var(--primary-text)', marginBottom: '20px', fontFamily: 'Montserrat' }}>
-              Upload Opponent Data CSV
+              Upload Opponent Data CSVs
             </h3>
             <p style={{ color: 'var(--secondary-text)', marginBottom: '30px', fontFamily: 'Montserrat' }}>
-              Upload aggregated CSV data for {opponentName} across all matchdays
+              Upload 2 CSV files for {opponentName} analysis: Opponent metrics & Our team metrics
             </p>
-            
+
             {dataExists && (
               <div style={{
                 background: 'rgba(251, 191, 36, 0.1)',
@@ -578,7 +631,7 @@ export default function OpponentView({}: OpponentViewProps) {
                 </p>
               </div>
             )}
-            
+
             {csvData.length > 0 && (
               <div style={{
                 background: 'rgba(34, 197, 94, 0.1)',
@@ -593,34 +646,48 @@ export default function OpponentView({}: OpponentViewProps) {
               }}>
                 <Users size={16} color="#22c55e" />
                 <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  Detected: Opponent Team Statistics ({csvData.length} teams)
+                  ✓ Both CSVs merged successfully! ({csvData.length} teams)
                 </p>
               </div>
             )}
-            
+
+            {/* CSV 1 Upload */}
             <div style={{
               border: '2px dashed rgba(255, 215, 0, 0.3)',
               borderRadius: '12px',
-              padding: '40px',
-              marginBottom: '30px',
+              padding: '30px',
+              marginBottom: '20px',
               background: 'rgba(255, 215, 0, 0.05)'
             }}>
-              <Upload size={48} color="#FFD700" style={{ marginBottom: '16px' }} />
-              <p style={{ color: 'var(--primary-text)', marginBottom: '16px', fontFamily: 'Montserrat' }}>
-                Drag and drop your CSV file here, or click to browse
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                <span style={{
+                  background: '#FFD700',
+                  color: '#000',
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  fontFamily: 'Montserrat'
+                }}>
+                  CSV 1
+                </span>
+              </div>
+              <Upload size={36} color="#FFD700" style={{ marginBottom: '12px' }} />
+              <p style={{ color: 'var(--primary-text)', marginBottom: '12px', fontFamily: 'Montserrat', fontSize: '14px' }}>
+                Opponent Metrics (ppda40, poswonopponenthalf)
               </p>
               <input
                 type="file"
                 accept=".csv"
-                onChange={handleCsvUpload}
+                onChange={handleCsv1Upload}
                 style={{ display: 'none' }}
-                id="csv-upload"
+                id="csv1-upload"
               />
               <label
-                htmlFor="csv-upload"
+                htmlFor="csv1-upload"
                 style={{
-                  background: 'linear-gradient(135deg, #FFD700, #FFA500)',
-                  color: '#000',
+                  background: csvFile1 ? 'rgba(34, 197, 94, 0.3)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                  color: csvFile1 ? '#22c55e' : '#000',
                   border: 'none',
                   padding: '10px 20px',
                   borderRadius: '6px',
@@ -631,23 +698,60 @@ export default function OpponentView({}: OpponentViewProps) {
                   display: 'inline-block'
                 }}
               >
-                Choose CSV File
+                {csvFile1 ? `✓ ${csvFile1.name}` : 'Choose CSV File 1'}
               </label>
             </div>
-            
-            {csvFile && (
-              <div style={{
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '20px'
-              }}>
-                <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  ✓ {csvFile.name} uploaded successfully
-                </p>
+
+            {/* CSV 2 Upload */}
+            <div style={{
+              border: '2px dashed rgba(255, 215, 0, 0.3)',
+              borderRadius: '12px',
+              padding: '30px',
+              marginBottom: '30px',
+              background: 'rgba(255, 215, 0, 0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                <span style={{
+                  background: '#FFD700',
+                  color: '#000',
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  fontFamily: 'Montserrat'
+                }}>
+                  CSV 2
+                </span>
               </div>
-            )}
+              <Upload size={36} color="#FFD700" style={{ marginBottom: '12px' }} />
+              <p style={{ color: 'var(--primary-text)', marginBottom: '12px', fontFamily: 'Montserrat', fontSize: '14px' }}>
+                Our Team Metrics (AvgSeqTime, StartA1EndA2, StartA1EndA3, SeqStartA1)
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsv2Upload}
+                style={{ display: 'none' }}
+                id="csv2-upload"
+              />
+              <label
+                htmlFor="csv2-upload"
+                style={{
+                  background: csvFile2 ? 'rgba(34, 197, 94, 0.3)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                  color: csvFile2 ? '#22c55e' : '#000',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  display: 'inline-block'
+                }}
+              >
+                {csvFile2 ? `✓ ${csvFile2.name}` : 'Choose CSV File 2'}
+              </label>
+            </div>
           </div>
         )}
 
@@ -674,8 +778,9 @@ export default function OpponentView({}: OpponentViewProps) {
                 </h4>
                 <p style={{ color: 'var(--primary-text)', fontSize: '14px', fontFamily: 'Montserrat' }}>
                   Opponent: {opponentName}<br />
-                  CSV File: {csvFile?.name}<br />
-                  Data Type: Aggregated Team Statistics<br />
+                  CSV File 1: {csvFile1?.name}<br />
+                  CSV File 2: {csvFile2?.name}<br />
+                  Data Type: Merged Team Statistics (Opponent + Our Team)<br />
                   Teams: {csvData.length}<br />
                   Matchdays: {totalMatchdays}<br />
                   Season: 2025-2026<br />

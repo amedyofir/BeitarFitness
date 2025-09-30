@@ -65,7 +65,12 @@ export interface OpponentStatistics {
   // Tactical Metrics
   avg_sequence_time?: number
   ppda_40?: number
-  
+
+  // Press Score Components (from second CSV - our team's metrics)
+  our_avg_sequence_time?: number
+  our_long_ball_percentage?: number
+  our_a1_to_a2_a3_percentage?: number
+
   // Metadata
   total_matchdays?: number
   csv_filename?: string
@@ -77,6 +82,51 @@ export interface OpponentMetadata {
   season?: string
   total_teams?: number
   total_matchdays?: number
+}
+
+// Function to parse second CSV row (our team's metrics for press score)
+export const parseOurTeamMetricsCsvRow = (row: any) => {
+  // Helper function to parse numeric values
+  const parseNumeric = (value: any): number | undefined => {
+    if (!value || value === '') return undefined
+    const parsed = parseFloat(value)
+    return isNaN(parsed) ? undefined : parsed
+  }
+
+  // Helper function to parse integer values
+  const parseInt_ = (value: any): number | undefined => {
+    if (!value || value === '') return undefined
+    const parsed = parseInt(value)
+    return isNaN(parsed) ? undefined : parsed
+  }
+
+  // Extract values from CSV 2 (using correct column names)
+  const s1e2 = parseInt_(row['S1E2']) || 0  // StartA1EndA2
+  const s1e3 = parseInt_(row['S1E3']) || 0  // StartA1EndA3
+  const s1 = parseInt_(row['s1']) || 0      // SeqStartA1
+
+  // Helper function to parse percentage strings
+  const parsePercentage = (value: string): number | undefined => {
+    if (!value || value === '') return undefined
+    const cleaned = value.replace('%', '')
+    const parsed = parseFloat(cleaned)
+    return isNaN(parsed) ? undefined : parsed
+  }
+
+  // LongBall% - take directly from CSV (already calculated)
+  const longBallPercentage = parsePercentage(row['LongBall%'])
+
+  // A1→A2+A3 percentage = (S1E3 + S1E2) / s1
+  const a1ToA2A3Percentage = s1 > 0
+    ? ((s1e3 + s1e2) / s1) * 100
+    : undefined
+
+  return {
+    team_full_name: row['teamFullName'] || row['Team'],
+    our_avg_sequence_time: parseNumeric(row['AvgSeqTime']),
+    our_long_ball_percentage: longBallPercentage,
+    our_a1_to_a2_a3_percentage: a1ToA2A3Percentage
+  }
 }
 
 // Function to parse CSV row and convert to OpponentStatistics (same logic as team parsing)
@@ -169,6 +219,30 @@ export const parseOpponentCsvRow = (row: any): OpponentStatistics => {
     avg_sequence_time: parseNumeric(row['AvgSeqTime']),
     ppda_40: parseNumeric(row['ppda40'])
   }
+}
+
+// Merge opponent statistics from two CSVs (first CSV + second CSV with our team metrics)
+export const mergeOpponentStatistics = (
+  opponentData: OpponentStatistics[],
+  ourTeamData: any[]
+): OpponentStatistics[] => {
+  return opponentData.map(team => {
+    // Find matching team in our team data by team name
+    const ourTeamMetrics = ourTeamData.find(
+      t => t.team_full_name === team.team_full_name
+    )
+
+    if (ourTeamMetrics) {
+      return {
+        ...team,
+        our_avg_sequence_time: ourTeamMetrics.our_avg_sequence_time,
+        our_long_ball_percentage: ourTeamMetrics.our_long_ball_percentage,
+        our_a1_to_a2_a3_percentage: ourTeamMetrics.our_a1_to_a2_a3_percentage
+      }
+    }
+
+    return team
+  })
 }
 
 // Save opponent statistics (overwrites existing data for the same opponent)

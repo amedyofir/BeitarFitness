@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS opponent_statistics (
     seq_start_att_3rd INTEGER,
     seq_start_mid_3rd INTEGER,
     seq_start_a1 INTEGER,
+
+    -- Press Score Components (from second CSV - our team's metrics)
+    our_avg_sequence_time DECIMAL(10,2),
+    our_long_ball_percentage DECIMAL(5,2),
+    our_a1_to_a2_a3_percentage DECIMAL(5,2),
     
     -- Possession & Passing (averaged)
     aerial_percentage DECIMAL(5,2),
