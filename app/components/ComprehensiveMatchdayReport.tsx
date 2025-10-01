@@ -36,10 +36,14 @@ interface ComprehensiveMatchdayReportProps {
   runningData: PlayerRunningData[]
   matchdayNumber: string
   selectedOpponent: string
+  isSeasonReport?: boolean
+  highlightOpponent?: string
+  exportRef?: React.RefObject<HTMLDivElement>
 }
 
-export default function ComprehensiveMatchdayReport({ runningData, matchdayNumber, selectedOpponent }: ComprehensiveMatchdayReportProps) {
-  const exportRef = useRef<HTMLDivElement>(null)
+export default function ComprehensiveMatchdayReport({ runningData, matchdayNumber, selectedOpponent, isSeasonReport = false, highlightOpponent, exportRef: externalExportRef }: ComprehensiveMatchdayReportProps) {
+  const internalExportRef = useRef<HTMLDivElement>(null)
+  const exportRef = externalExportRef || internalExportRef
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string>('')
   const [matchDate, setMatchDate] = useState<string>(new Date().toISOString().split('T')[0])
@@ -288,6 +292,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         speedFirstHalf: 0,
         speedSecondHalf: 0,
         maxGameTime: 0,
+        maxGM: 0,
         playerCount: 0,
         players: []
       }
@@ -334,58 +339,85 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
       team.speedSecondHalf = (team.speedSecondHalf || 0) + validSpeed
     }
     team.maxGameTime = Math.max(team.maxGameTime, player.MinIncET || player.Min || 0)
+
+    // Track MAX(GM) for season reports
+    const playerGM = parseFloat(player.GM) || 0
+    team.maxGM = Math.max(team.maxGM, playerGM)
+
     team.playerCount++
     team.players.push(player)
   })
   
   // First pass to get the data
-  const teams = Object.entries(teamData).map(([team, data]) => ({
-    team,
-    totalDistance: data.totalDistance,
-    totalFirstHalf: data.totalFirstHalf,
-    totalSecondHalf: data.totalSecondHalf,
-    totalInPoss: data.totalInPoss,
-    totalOutPoss: data.totalOutPoss,
-    avgInPossIntensity: data.totalInPoss > 0 ? ((data.totalInPossHSR + data.totalInPossSprint) / data.totalInPoss * 100) : 0,
-    avgOutPossIntensity: data.totalOutPoss > 0 ? ((data.totalOutPossHSR + data.totalOutPossSprint) / data.totalOutPoss * 100) : 0,
-    avgMPM: data.maxGameTime > 0 ? (data.totalDistance / data.maxGameTime) : 0,
-    avgIntensity: data.totalDistance > 0 ? 
-      ((data.totalFirstHalfHSR + data.totalFirstHalfSprint + data.totalSecondHalfHSR + data.totalSecondHalfSprint) / data.totalDistance * 100) : 0,
-    avgSpeed: data.totalSpeed > 0 && data.playerCount > 0 ? (data.totalSpeed / data.playerCount) : 0,
-    playerCount: data.playerCount,
-    players: data.players,
-    totalFirstHalfHSR: data.totalFirstHalfHSR,
-    totalFirstHalfSprint: data.totalFirstHalfSprint,
-    totalSecondHalfHSR: data.totalSecondHalfHSR,
-    totalSecondHalfSprint: data.totalSecondHalfSprint,
-    speedFirstHalf: data.speedFirstHalf,
-    speedSecondHalf: data.speedSecondHalf,
-    maxGameTime: data.maxGameTime,
-    almogScore: 0 // Will calculate after getting min/max
-  }))
+  const teams = Object.entries(teamData).map(([team, data]) => {
+    // For season reports, normalize team totals by MAX(GM)
+    // Special case: Ironi Tiberias and Hapoel Haifa use MAX(GM)-1 due to missing match data
+    let effectiveMaxGM = data.maxGM
+    if (isSeasonReport && (team === 'Ironi Tiberias' || team === 'Hapoel Haifa')) {
+      effectiveMaxGM = Math.max(1, data.maxGM - 1)
+    }
+    const gmNormalizeFactor = isSeasonReport && effectiveMaxGM > 0 ? (1 / effectiveMaxGM) : 1
+
+    return {
+      team,
+      totalDistance: data.totalDistance * gmNormalizeFactor,
+      totalFirstHalf: data.totalFirstHalf * gmNormalizeFactor,
+      totalSecondHalf: data.totalSecondHalf * gmNormalizeFactor,
+      totalInPoss: data.totalInPoss * gmNormalizeFactor,
+      totalOutPoss: data.totalOutPoss * gmNormalizeFactor,
+      avgInPossIntensity: data.totalInPoss > 0 ? ((data.totalInPossHSR + data.totalInPossSprint) / data.totalInPoss * 100) : 0,
+      avgOutPossIntensity: data.totalOutPoss > 0 ? ((data.totalOutPossHSR + data.totalOutPossSprint) / data.totalOutPoss * 100) : 0,
+      avgMPM: data.maxGameTime > 0 ? (data.totalDistance / data.maxGameTime) : 0,
+      avgIntensity: data.totalDistance > 0 ?
+        ((data.totalFirstHalfHSR + data.totalFirstHalfSprint + data.totalSecondHalfHSR + data.totalSecondHalfSprint) / data.totalDistance * 100) : 0,
+      avgSpeed: data.totalSpeed > 0 && data.playerCount > 0 ? (data.totalSpeed / data.playerCount) : 0,
+      playerCount: data.playerCount,
+      players: data.players,
+      totalFirstHalfHSR: data.totalFirstHalfHSR * gmNormalizeFactor,
+      totalFirstHalfSprint: data.totalFirstHalfSprint * gmNormalizeFactor,
+      totalSecondHalfHSR: data.totalSecondHalfHSR * gmNormalizeFactor,
+      totalSecondHalfSprint: data.totalSecondHalfSprint * gmNormalizeFactor,
+      speedFirstHalf: data.speedFirstHalf,
+      speedSecondHalf: data.speedSecondHalf,
+      maxGameTime: data.maxGameTime,
+      maxGM: data.maxGM,
+      almogScore: 0 // Will calculate after getting min/max
+    }
+  })
   
   // Get min and max for proportional scoring
+  const distanceValues = teams.map(t => t.totalDistance).filter(v => v > 0)
   const mpmValues = teams.map(t => t.avgMPM).filter(v => v > 0)
   const speedValues = teams.map(t => t.avgSpeed).filter(v => v > 0)
   const intensityValues = teams.map(t => t.avgIntensity).filter(v => v > 0)
-  
+
+  const minDistance = Math.min(...distanceValues)
+  const maxDistance = Math.max(...distanceValues)
   const minMPM = Math.min(...mpmValues)
   const maxMPM = Math.max(...mpmValues)
   const minSpeed = Math.min(...speedValues)
   const maxSpeed = Math.max(...speedValues)
   const minIntensity = Math.min(...intensityValues)
   const maxIntensity = Math.max(...intensityValues)
-  
+
   // Calculate proportional ALMOG scores
   teams.forEach(team => {
-    const mpmScore = maxMPM > minMPM ? 
+    const distanceScore = maxDistance > minDistance ?
+      ((team.totalDistance - minDistance) / (maxDistance - minDistance)) * 100 : 50
+    const mpmScore = maxMPM > minMPM ?
       ((team.avgMPM - minMPM) / (maxMPM - minMPM)) * 100 : 50
-    const speedScore = maxSpeed > minSpeed ? 
+    const speedScore = maxSpeed > minSpeed ?
       ((team.avgSpeed - minSpeed) / (maxSpeed - minSpeed)) * 100 : 50
-    const intensityScore = maxIntensity > minIntensity ? 
+    const intensityScore = maxIntensity > minIntensity ?
       ((team.avgIntensity - minIntensity) / (maxIntensity - minIntensity)) * 100 : 50
-    
-    team.almogScore = (mpmScore * 0.3) + (speedScore * 0.3) + (intensityScore * 0.4)
+
+    // For season reports: Distance 40%, Speed 10%, Intensity 50%
+    // For match reports: MPM 40%, Speed 10%, Intensity 50%
+    if (isSeasonReport) {
+      team.almogScore = (distanceScore * 0.4) + (speedScore * 0.1) + (intensityScore * 0.5)
+    } else {
+      team.almogScore = (mpmScore * 0.4) + (speedScore * 0.1) + (intensityScore * 0.5)
+    }
   })
   
   const allTeams = teams.sort((a, b) => b.almogScore - a.almogScore)
@@ -437,16 +469,30 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
   }
 
   const renderPlayerRow = (player: any, index: number, isSubstitute: boolean = false) => {
-    const totalDistance = (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
     const gameTime = player.MinIncET || player.Min || 0
-    const mpm = gameTime > 0 ? (totalDistance / gameTime) : 0
-    const inPoss = player.DistanceRunInPoss || 0
-    const outPoss = player.DistanceRunOutPoss || 0
-    const inPossIntensity = inPoss > 0 ? (((player.InPossDistHSRun || 0) + (player.InPossDistSprint || 0)) / inPoss * 100) : 0
-    const outPossIntensity = outPoss > 0 ? (((player.OutPossDistHSRun || 0) + (player.OutPossDistSprint || 0)) / outPoss * 100) : 0
-    const intensity = totalDistance > 0 ? 
-      (((player.FirstHalfDistHSRun || 0) + (player.FirstHalfDistSprint || 0) + 
-        (player.ScndHalfDistHSRun || 0) + (player.ScndHalfDistSprint || 0)) / totalDistance * 100) : 0
+
+    // For season reports, normalize distances by (value / MinIncET) * 90
+    const normalizeFactor = isSeasonReport && gameTime > 0 ? (90 / gameTime) : 1
+
+    // Calculate raw total distance for MPM (always use raw distance for MPM)
+    const rawTotalDistance = (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
+    const totalDistance = rawTotalDistance * normalizeFactor
+    const mpm = gameTime > 0 ? (rawTotalDistance / gameTime) : 0
+    const inPoss = (player.DistanceRunInPoss || 0) * normalizeFactor
+    const outPoss = (player.DistanceRunOutPoss || 0) * normalizeFactor
+    const inPossHSR = (player.InPossDistHSRun || 0) * normalizeFactor
+    const inPossSprint = (player.InPossDistSprint || 0) * normalizeFactor
+    const outPossHSR = (player.OutPossDistHSRun || 0) * normalizeFactor
+    const outPossSprint = (player.OutPossDistSprint || 0) * normalizeFactor
+    const firstHalfHSR = (player.FirstHalfDistHSRun || 0) * normalizeFactor
+    const firstHalfSprint = (player.FirstHalfDistSprint || 0) * normalizeFactor
+    const secondHalfHSR = (player.ScndHalfDistHSRun || 0) * normalizeFactor
+    const secondHalfSprint = (player.ScndHalfDistSprint || 0) * normalizeFactor
+
+    const inPossIntensity = inPoss > 0 ? ((inPossHSR + inPossSprint) / inPoss * 100) : 0
+    const outPossIntensity = outPoss > 0 ? ((outPossHSR + outPossSprint) / outPoss * 100) : 0
+    const intensity = totalDistance > 0 ?
+      ((firstHalfHSR + firstHalfSprint + secondHalfHSR + secondHalfSprint) / totalDistance * 100) : 0
     const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
     
     // Use the proportional ALMOG calculation
@@ -461,40 +507,54 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
           {index + 1}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'left', color: '#fff', fontSize: '16px', fontWeight: '500', width: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {player.Player}{player.Min ? ` ${player.Min}'` : ''}
+          {player.Player}
+          {player.Min && (
+            <span style={{
+              marginLeft: '6px',
+              color: '#FFD700',
+              fontWeight: '700',
+              fontSize: '14px',
+              background: 'rgba(255, 215, 0, 0.15)',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: '1px solid rgba(255, 215, 0, 0.3)'
+            }}>
+              {player.Min}'
+            </span>
+          )}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#FFD700', fontSize: '16px', fontWeight: '600' }}>
           {formatDistance(totalDistance)}
         </td>
-        <td style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
+        {!isSeasonReport && <td style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
           {mpm.toFixed(1)}
-        </td>
+        </td>}
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
           {intensity.toFixed(1)}%
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#FFD700', fontSize: '16px', fontWeight: '600' }}>
           {formatSpeed(speed)}
         </td>
-        <td style={{ padding: '10px 8px', width: '140px' }}>
-          <div style={{ marginBottom: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
-              {renderProgressBar(inPoss, Math.max(...runningData.map(p => p.DistanceRunInPoss || 0)), 'green')}
+        <td style={{ padding: '10px 8px', width: '160px' }}>
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
+              {renderProgressBar(inPoss, maxPlayerInPoss, 'green')}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
-              {renderProgressBar(outPoss, Math.max(...runningData.map(p => p.DistanceRunOutPoss || 0)), 'red')}
+            <div>
+              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
+              {renderProgressBar(outPoss, maxPlayerOutPoss, 'red')}
             </div>
           </div>
         </td>
-        <td style={{ padding: '10px 8px', width: '140px' }}>
-          <div style={{ marginBottom: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
-              <div style={{ 
-                flex: 1, 
-                height: '14px', 
-                background: 'rgba(255, 255, 255, 0.1)', 
+        <td style={{ padding: '10px 8px', width: '160px' }}>
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
+              <div style={{
+                width: '100%',
+                height: '14px',
+                background: 'rgba(255, 255, 255, 0.1)',
                 borderRadius: '7px',
                 position: 'relative',
                 overflow: 'hidden'
@@ -510,7 +570,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                   right: '2px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   color: '#fff',
                   fontWeight: '700'
                 }}>
@@ -518,12 +578,12 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
-              <div style={{ 
-                flex: 1, 
-                height: '14px', 
-                background: 'rgba(255, 255, 255, 0.1)', 
+            <div>
+              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
+              <div style={{
+                width: '100%',
+                height: '14px',
+                background: 'rgba(255, 255, 255, 0.1)',
                 borderRadius: '7px',
                 position: 'relative',
                 overflow: 'hidden'
@@ -539,7 +599,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                   right: '2px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  fontSize: '14px',
+                  fontSize: '12px',
                   color: '#fff',
                   fontWeight: '700'
                 }}>
@@ -558,7 +618,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
 
   const beitarTeam = allTeams.find(t => t.team.toLowerCase().includes('beitar'))
-  const opponentTeam = allTeams.find(t => t.team === selectedOpponent)
+  const opponentTeam = allTeams.find(t => t.team === (highlightOpponent || selectedOpponent))
   const beitarPlayers = beitarTeam?.players || []
   const opponentPlayers = opponentTeam?.players || []
 
@@ -574,21 +634,34 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
   
   // Calculate metrics for all players
   const playerMetrics = allPlayers.map(player => {
-    const totalDistance = (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
     const gameTime = player.MinIncET || player.Min || 0
+    const normalizeFactor = isSeasonReport && gameTime > 0 ? (90 / gameTime) : 1
+    const totalDistance = ((player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)) * normalizeFactor
+    const inPoss = (player.DistanceRunInPoss || 0) * normalizeFactor
+    const outPoss = (player.DistanceRunOutPoss || 0) * normalizeFactor
     const mpm = gameTime > 0 ? (totalDistance / gameTime) : 0
-    const intensity = totalDistance > 0 ? 
-      (((player.FirstHalfDistHSRun || 0) + (player.FirstHalfDistSprint || 0) + 
-        (player.ScndHalfDistHSRun || 0) + (player.ScndHalfDistSprint || 0)) / totalDistance * 100) : 0
+
+    // Normalize HSR and Sprint for intensity calculation
+    const totalHSR = ((player.FirstHalfDistHSRun || 0) + (player.ScndHalfDistHSRun || 0)) * normalizeFactor
+    const totalSprint = ((player.FirstHalfDistSprint || 0) + (player.ScndHalfDistSprint || 0)) * normalizeFactor
+    const intensity = totalDistance > 0 ? ((totalHSR + totalSprint) / totalDistance * 100) : 0
+
     const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
-    return { player, mpm, intensity, speed }
+    return { player, totalDistance, inPoss, outPoss, mpm, intensity, speed }
   })
-  
+
   // Get min/max for player metrics
+  const playerDistanceValues = playerMetrics.map(p => p.totalDistance).filter(v => v > 0)
+  const playerInPossValues = playerMetrics.map(p => p.inPoss).filter(v => v > 0)
+  const playerOutPossValues = playerMetrics.map(p => p.outPoss).filter(v => v > 0)
   const playerMpmValues = playerMetrics.map(p => p.mpm).filter(v => v > 0)
   const playerSpeedValues = playerMetrics.map(p => p.speed).filter(v => v > 0)
   const playerIntensityValues = playerMetrics.map(p => p.intensity).filter(v => v > 0)
-  
+
+  const minPlayerDistance = Math.min(...playerDistanceValues)
+  const maxPlayerDistance = Math.max(...playerDistanceValues)
+  const maxPlayerInPoss = Math.max(...playerInPossValues)
+  const maxPlayerOutPoss = Math.max(...playerOutPossValues)
   const minPlayerMPM = Math.min(...playerMpmValues)
   const maxPlayerMPM = Math.max(...playerMpmValues)
   const minPlayerSpeed = Math.min(...playerSpeedValues)
@@ -598,25 +671,25 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
   // Calculate proportional ALMOG for each player
   const calculatePlayerAlmog = (player: any) => {
-    const totalDistance = (player.DistanceRunFirstHalf || 0) + (player.DistanceRunScndHalf || 0)
-    const gameTime = player.MinIncET || player.Min || 0
-    const mpm = gameTime > 0 ? (totalDistance / gameTime) : 0
-    const intensity = totalDistance > 0 ? 
-      (((player.FirstHalfDistHSRun || 0) + (player.FirstHalfDistSprint || 0) + 
-        (player.ScndHalfDistHSRun || 0) + (player.ScndHalfDistSprint || 0)) / totalDistance * 100) : 0
-    const speed = typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || player.TopSpeed || 0)
-    
     const metrics = playerMetrics.find(p => p.player === player)
     if (!metrics) return 0
-    
-    const mpmScore = maxPlayerMPM > minPlayerMPM ? 
+
+    const distanceScore = maxPlayerDistance > minPlayerDistance ?
+      ((metrics.totalDistance - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance)) * 100 : 50
+    const mpmScore = maxPlayerMPM > minPlayerMPM ?
       ((metrics.mpm - minPlayerMPM) / (maxPlayerMPM - minPlayerMPM)) * 100 : 50
-    const speedScore = maxPlayerSpeed > minPlayerSpeed ? 
+    const speedScore = maxPlayerSpeed > minPlayerSpeed ?
       ((metrics.speed - minPlayerSpeed) / (maxPlayerSpeed - minPlayerSpeed)) * 100 : 50
-    const intensityScore = maxPlayerIntensity > minPlayerIntensity ? 
+    const intensityScore = maxPlayerIntensity > minPlayerIntensity ?
       ((metrics.intensity - minPlayerIntensity) / (maxPlayerIntensity - minPlayerIntensity)) * 100 : 50
-    
-    return (mpmScore * 0.3) + (speedScore * 0.3) + (intensityScore * 0.4)
+
+    // For season reports: Distance 40%, Speed 10%, Intensity 50%
+    // For match reports: MPM 40%, Speed 10%, Intensity 50%
+    if (isSeasonReport) {
+      return (distanceScore * 0.4) + (speedScore * 0.1) + (intensityScore * 0.5)
+    } else {
+      return (mpmScore * 0.4) + (speedScore * 0.1) + (intensityScore * 0.5)
+    }
   }
   
   const sortedBeitarPlayers = [...beitarPlayers].sort((a, b) => 
@@ -633,89 +706,93 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Match Date and Action Buttons */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between',
+      {/* Action Buttons */}
+      <div style={{
+        display: 'flex',
+        justifyContent: isSeasonReport ? 'flex-end' : 'space-between',
         alignItems: 'center',
-        marginBottom: '16px' 
+        marginBottom: '16px'
       }}>
-        {/* Match Date Input */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <Calendar size={16} style={{ color: '#FFD700' }} />
-          <label style={{
-            color: '#FFD700',
-            fontSize: '14px',
-            fontWeight: '600'
+        {/* Match Date Input - Only for match reports */}
+        {!isSeasonReport && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            Match Date:
-          </label>
-          <input
-            type="date"
-            value={matchDate}
-            onChange={(e) => setMatchDate(e.target.value)}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid #444',
-              borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: '#fff',
+            <Calendar size={16} style={{ color: '#FFD700' }} />
+            <label style={{
+              color: '#FFD700',
               fontSize: '14px',
-              fontFamily: 'system-ui, -apple-system, sans-serif'
-            }}
-          />
-        </div>
-        
-        {/* Action Buttons */}
-        <div style={{ 
+              fontWeight: '600'
+            }}>
+              Match Date:
+            </label>
+            <input
+              type="date"
+              value={matchDate}
+              onChange={(e) => setMatchDate(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid #444',
+                borderRadius: '6px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: '#fff',
+                fontSize: '14px',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+              }}
+            />
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div style={{
           display: 'flex',
           gap: '12px'
         }}>
-        <button 
-          onClick={handleSaveReport}
-          disabled={isSaving}
-          style={{
-            backgroundColor: isSaving ? '#666' : '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 16px',
-            cursor: isSaving ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '16px',
-            fontWeight: '600',
-            opacity: isSaving ? 0.7 : 1
-          }}
-        >
-          {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          {isSaving ? 'Saving...' : 'Save Report'}
-        </button>
-        
-        <button 
-          onClick={handleDownloadPNG}
-          style={{
-            backgroundColor: '#FFD700',
-            color: '#1a1f2e',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '16px',
-            fontWeight: '600'
-          }}
-        >
-          <Download size={16} />
-          Download PNG
-        </button>
+          {!isSeasonReport && (
+            <button
+              onClick={handleSaveReport}
+              disabled={isSaving}
+              style={{
+                backgroundColor: isSaving ? '#666' : '#22c55e',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 16px',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '16px',
+                fontWeight: '600',
+                opacity: isSaving ? 0.7 : 1
+              }}
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {isSaving ? 'Saving...' : 'Save Report'}
+            </button>
+          )}
+
+          <button
+            onClick={handleDownloadPNG}
+            style={{
+              backgroundColor: '#FFD700',
+              color: '#1a1f2e',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '16px',
+              fontWeight: '600'
+            }}
+          >
+            <Download size={16} />
+            Download PNG
+          </button>
         </div>
       </div>
       
@@ -780,7 +857,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
                 <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '140px' }}>TEAM</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                {!isSeasonReport && <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>}
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
@@ -791,14 +868,14 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <tbody>
               {allTeams.map((team, index) => {
                 const isBeitarRow = team.team.toLowerCase().includes('beitar')
-                const isOpponentRow = team.team === selectedOpponent
-                
+                const isOpponentRow = highlightOpponent ? team.team === highlightOpponent : team.team === selectedOpponent
+
                 return (
-                  <tr 
+                  <tr
                     key={team.team}
-                    style={{ 
+                    style={{
                       borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                      background: isBeitarRow ? 'rgba(255, 215, 0, 0.15)' : 
+                      background: isBeitarRow ? 'rgba(255, 215, 0, 0.15)' :
                                   isOpponentRow ? 'rgba(239, 68, 68, 0.15)' : 'transparent'
                     }}
                   >
@@ -811,9 +888,9 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {formatDistance(team.totalDistance)}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
+                    {!isSeasonReport && <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
                       {Math.round(team.avgMPM)}
-                    </td>
+                    </td>}
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
                       {team.avgIntensity.toFixed(1)}%
                     </td>
@@ -927,8 +1004,8 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
             <tbody>
               {allTeams.map((team, index) => {
                 const isBeitarRow = team.team.toLowerCase().includes('beitar')
-                const isOpponentRow = team.team === selectedOpponent
-                
+                const isOpponentRow = highlightOpponent ? team.team === highlightOpponent : team.team === selectedOpponent
+
                 const firstHalfDistance = team.totalFirstHalf
                 const secondHalfDistance = team.totalSecondHalf
                 const maxDistance = Math.max(...allTeams.map(t => t.totalDistance))
@@ -1221,7 +1298,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
                 <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '120px' }}>PLAYER</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                {!isSeasonReport && <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>}
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
@@ -1230,32 +1307,75 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
               </tr>
             </thead>
             <tbody>
-              {sortedBeitarPlayers.filter(p => {
-                console.log('Beitar player GS check:', p.Player, 'GS:', p.GS, 'type:', typeof p.GS)
-                return p.GS === 1 || p.GS === "1"
-              }).map((player, index) => 
-                renderPlayerRow(player, index, false)
-              )}
-              
-              {sortedBeitarPlayers.filter(p => p.GS === 0 || p.GS === "0").length > 0 && (
+              {isSeasonReport ? (
+                // For season reports, split by minutes played (over 200 vs under 200)
                 <>
-                  <tr>
-                    <td colSpan={9} style={{ 
-                      padding: '15px 0 10px 0',
-                      textAlign: 'center'
-                    }}>
-                      <span style={{ 
-                        color: '#FFD700', 
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        letterSpacing: '1px'
-                      }}>
-                        SUBSTITUTES
-                      </span>
-                    </td>
-                  </tr>
-                  {sortedBeitarPlayers.filter(p => p.GS === 0 || p.GS === "0").map((player, index) => 
-                    renderPlayerRow(player, index, true)
+                  {sortedBeitarPlayers.filter(p => {
+                    const minutes = p.MinIncET || p.Min || 0
+                    return minutes > 200
+                  }).map((player, index) =>
+                    renderPlayerRow(player, index, false)
+                  )}
+
+                  {sortedBeitarPlayers.filter(p => {
+                    const minutes = p.MinIncET || p.Min || 0
+                    return minutes <= 200
+                  }).length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={9} style={{
+                          padding: '12px 8px',
+                          textAlign: 'center',
+                          background: 'rgba(139, 69, 19, 0.2)',
+                          borderTop: '2px solid rgba(139, 69, 19, 0.5)',
+                          borderBottom: '2px solid rgba(139, 69, 19, 0.5)'
+                        }}>
+                          <span style={{ color: '#D2691E', fontWeight: '700', fontSize: '14px' }}>
+                            PLAYERS UNDER 200 MINUTES
+                          </span>
+                        </td>
+                      </tr>
+
+                      {sortedBeitarPlayers.filter(p => {
+                        const minutes = p.MinIncET || p.Min || 0
+                        return minutes <= 200
+                      }).map((player, index) =>
+                        renderPlayerRow(player, index, true)
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                // For match reports, filter by GS (starting 11 vs substitutes)
+                <>
+                  {sortedBeitarPlayers.filter(p => {
+                    console.log('Beitar player GS check:', p.Player, 'GS:', p.GS, 'type:', typeof p.GS)
+                    return p.GS === 1 || p.GS === "1"
+                  }).map((player, index) =>
+                    renderPlayerRow(player, index, false)
+                  )}
+
+                  {sortedBeitarPlayers.filter(p => p.GS === 0 || p.GS === "0").length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={9} style={{
+                          padding: '15px 0 10px 0',
+                          textAlign: 'center'
+                        }}>
+                          <span style={{
+                            color: '#FFD700',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            letterSpacing: '1px'
+                          }}>
+                            SUBSTITUTES
+                          </span>
+                        </td>
+                      </tr>
+                      {sortedBeitarPlayers.filter(p => p.GS === 0 || p.GS === "0").map((player, index) =>
+                        renderPlayerRow(player, index, true)
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1265,15 +1385,16 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         </div>
 
         {/* 4. Opponent Players */}
+        {(highlightOpponent || (selectedOpponent && selectedOpponent !== "All Teams")) && (
         <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ 
-            color: '#FFD700', 
+          <h2 style={{
+            color: '#FFD700',
             fontSize: '20px',
             fontWeight: '600',
             marginBottom: '15px',
             textAlign: 'center'
           }}>
-            {selectedOpponent} Players
+            {highlightOpponent || selectedOpponent} Players
           </h2>
           
           <div style={{ overflowX: 'auto', marginBottom: '10px' }}>
@@ -1283,7 +1404,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
                 <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '120px' }}>PLAYER</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
-                <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>
+                {!isSeasonReport && <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>}
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
@@ -1292,32 +1413,75 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
               </tr>
             </thead>
             <tbody>
-              {sortedOpponentPlayers.filter(p => {
-                console.log('Opponent player GS check:', p.Player, 'GS:', p.GS, 'type:', typeof p.GS)
-                return p.GS === 1 || p.GS === "1"
-              }).map((player, index) => 
-                renderPlayerRow(player, index, false)
-              )}
-              
-              {sortedOpponentPlayers.filter(p => p.GS === 0 || p.GS === "0").length > 0 && (
+              {isSeasonReport ? (
+                // For season reports, split by minutes played (over 200 vs under 200)
                 <>
-                  <tr>
-                    <td colSpan={9} style={{ 
-                      padding: '15px 0 10px 0',
-                      textAlign: 'center'
-                    }}>
-                      <span style={{ 
-                        color: '#FFD700', 
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        letterSpacing: '1px'
-                      }}>
-                        SUBSTITUTES
-                      </span>
-                    </td>
-                  </tr>
-                  {sortedOpponentPlayers.filter(p => p.GS === 0 || p.GS === "0").map((player, index) => 
-                    renderPlayerRow(player, index, true)
+                  {sortedOpponentPlayers.filter(p => {
+                    const minutes = p.MinIncET || p.Min || 0
+                    return minutes > 200
+                  }).map((player, index) =>
+                    renderPlayerRow(player, index, false)
+                  )}
+
+                  {sortedOpponentPlayers.filter(p => {
+                    const minutes = p.MinIncET || p.Min || 0
+                    return minutes <= 200
+                  }).length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={9} style={{
+                          padding: '12px 8px',
+                          textAlign: 'center',
+                          background: 'rgba(139, 69, 19, 0.2)',
+                          borderTop: '2px solid rgba(139, 69, 19, 0.5)',
+                          borderBottom: '2px solid rgba(139, 69, 19, 0.5)'
+                        }}>
+                          <span style={{ color: '#D2691E', fontWeight: '700', fontSize: '14px' }}>
+                            PLAYERS UNDER 200 MINUTES
+                          </span>
+                        </td>
+                      </tr>
+
+                      {sortedOpponentPlayers.filter(p => {
+                        const minutes = p.MinIncET || p.Min || 0
+                        return minutes <= 200
+                      }).map((player, index) =>
+                        renderPlayerRow(player, index, true)
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                // For match reports, filter by GS (starting 11 vs substitutes)
+                <>
+                  {sortedOpponentPlayers.filter(p => {
+                    console.log('Opponent player GS check:', p.Player, 'GS:', p.GS, 'type:', typeof p.GS)
+                    return p.GS === 1 || p.GS === "1"
+                  }).map((player, index) =>
+                    renderPlayerRow(player, index, false)
+                  )}
+
+                  {sortedOpponentPlayers.filter(p => p.GS === 0 || p.GS === "0").length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={9} style={{
+                          padding: '15px 0 10px 0',
+                          textAlign: 'center'
+                        }}>
+                          <span style={{
+                            color: '#FFD700',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            letterSpacing: '1px'
+                          }}>
+                            SUBSTITUTES
+                          </span>
+                        </td>
+                      </tr>
+                      {sortedOpponentPlayers.filter(p => p.GS === 0 || p.GS === "0").map((player, index) =>
+                        renderPlayerRow(player, index, true)
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1325,6 +1489,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
           </table>
           </div>
         </div>
+        )}
 
 
       </div>

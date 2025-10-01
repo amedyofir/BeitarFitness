@@ -1,12 +1,16 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Calendar, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Calendar, RefreshCw, AlertCircle, CheckCircle, FileDown } from 'lucide-react'
 import { CSVReportService } from '../../lib/csvReportService'
 import { CSVReportsList } from '../../types/csvReport'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+import html2canvas from 'html2canvas'
 
 export default function RunningReportDashboard() {
+  const exportRef = useRef<HTMLDivElement>(null)
   const [savedReports, setSavedReports] = useState<CSVReportsList[]>([])
   const [selectedReport, setSelectedReport] = useState<CSVReportsList | null>(null)
   const [runningData, setRunningData] = useState<any[]>([])
@@ -83,10 +87,41 @@ export default function RunningReportDashboard() {
     setError('')
   }
 
+  const handleDownloadPDF = async () => {
+    if (!exportRef.current || !selectedReport) return
+
+    try {
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        backgroundColor: '#1a1f2e',
+        logging: false,
+        windowWidth: exportRef.current.scrollWidth,
+        windowHeight: exportRef.current.scrollHeight
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+
+      // Calculate PDF dimensions to fit content
+      const pdf = new jsPDF({
+        orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [imgWidth, imgHeight]
+      })
+
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
+      pdf.save(`Matchday-${selectedReport.matchday_number}-vs-${selectedReport.opponent_team}.pdf`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Failed to generate PDF')
+    }
+  }
+
   if (selectedReport && runningData.length > 0) {
     return (
       <div>
-        <div style={{ 
+        <div style={{
           marginBottom: '20px',
           display: 'flex',
           alignItems: 'center',
@@ -108,7 +143,7 @@ export default function RunningReportDashboard() {
           >
             ← Back to Reports
           </button>
-          
+
           <div style={{
             color: '#FFD700',
             fontSize: '18px',
@@ -116,12 +151,34 @@ export default function RunningReportDashboard() {
           }}>
             Matchday {selectedReport.matchday_number} vs {selectedReport.opponent_team}
           </div>
+
+          <button
+            onClick={handleDownloadPDF}
+            style={{
+              background: '#f97316',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontFamily: 'Montserrat',
+              fontWeight: '600'
+            }}
+          >
+            <FileDown size={16} />
+            Download PDF
+          </button>
         </div>
 
         <ComprehensiveMatchdayReport
           runningData={runningData}
           matchdayNumber={selectedReport.matchday_number}
           selectedOpponent={selectedReport.opponent_team}
+          exportRef={exportRef}
         />
       </div>
     )

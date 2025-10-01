@@ -344,7 +344,12 @@ export default function CornersView() {
     })
 
     const sortedTeams = teamsWithScores.sort((a, b) => b.finalScore - a.finalScore)
-    return sortedTeams.map((team, index) => ({ ...team, finalRank: index + 1 }))
+    return sortedTeams.map((team, index) => ({
+      ...team,
+      finalRank: index + 1,
+      finalDefenseScore: team.finalScore,
+      finalDefenseRank: index + 1
+    }))
   }
 
   const calculateCornerSummaryStats = (teams: CornersData[]) => {
@@ -376,7 +381,17 @@ export default function CornersView() {
           xgFromCornerDiff
         }
       }
-      return attackTeam
+
+      // If no defense team found, return with default values
+      return {
+        ...attackTeam,
+        finalDefenseScore: 0,
+        combinedScore: attackTeam.finalScore * 0.5,
+        cornersDiff: attackTeam.corners,
+        shotFromCornerDiff: attackTeam.shotfromcorner,
+        goalFromCornerDiff: attackTeam.goalfromcorner,
+        xgFromCornerDiff: attackTeam.xgcorn
+      }
     })
 
     // Sort by combined score and assign final ranks
@@ -386,7 +401,8 @@ export default function CornersView() {
     }))
   }
 
-  const formatNumber = (num: number, decimals: number = 2): string => {
+  const formatNumber = (num: number | undefined | null, decimals: number = 2): string => {
+    if (num === undefined || num === null || isNaN(num)) return '0.00'
     return num.toFixed(decimals)
   }
 

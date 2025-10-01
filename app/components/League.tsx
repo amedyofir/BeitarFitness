@@ -8,9 +8,10 @@ import SimpleCSVReportsManager from './SimpleCSVReportsManager'
 import RunningReportDashboard from './RunningReportDashboard'
 import EnhancedTeamAverageReport from './EnhancedTeamAverageReport'
 import TopPlayersReport from './TopPlayersReport'
+import RunningSeasonReport from './RunningSeasonReport'
 
 export default function League() {
-  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'team-average' | 'top-players'>('matchday-reports')
+  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'running-season' | 'team-average' | 'top-players'>('matchday-reports')
   const [runningData, setRunningData] = useState<any[]>([])
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [selectedOpponent, setSelectedOpponent] = useState('')
@@ -42,12 +43,17 @@ export default function League() {
                 'InPossDistSprint', 'InPossDistHSRun', 'DistanceRunInPoss', 'TopSpeed',
                 'ScndHalfHighDecels', 'ScndHalfHighAccels', 'ScndHalfDistSprint', 'ScndHalfDistHSRun',
                 'DistanceRunScndHalf', 'FirstHalfHighDecels', 'FirstHalfHighAccels', 'FirstHalfDistSprint',
-                'FirstHalfDistHSRun', 'DistanceRunFirstHalf'
+                'FirstHalfDistHSRun', 'DistanceRunFirstHalf', 'GM', 'Age', 'GS', 'MinIncET', 'KMHSPEED'
               ]
-              
+
               numericFields.forEach(field => {
-                if (processedRow[field] && !isNaN(parseFloat(processedRow[field]))) {
-                  processedRow[field] = parseFloat(processedRow[field])
+                if (processedRow[field] !== undefined && processedRow[field] !== null && processedRow[field] !== '') {
+                  // Remove commas from numbers (e.g., "25,924" -> "25924")
+                  const cleanedValue = String(processedRow[field]).replace(/,/g, '')
+                  const numValue = parseFloat(cleanedValue)
+                  if (!isNaN(numValue)) {
+                    processedRow[field] = numValue
+                  }
                 }
               })
               
@@ -110,10 +116,17 @@ export default function League() {
           Saved Reports
         </button>
         <button
+          onClick={() => setActiveTab('running-season')}
+          className={`tab-button ${activeTab === 'running-season' ? 'active' : ''}`}
+        >
+          <TrendingUp />
+          Running Season
+        </button>
+        <button
           onClick={() => setActiveTab('team-average')}
           className={`tab-button ${activeTab === 'team-average' ? 'active' : ''}`}
         >
-          <TrendingUp />
+          <BarChart3 />
           Team Average
         </button>
         <button
@@ -278,6 +291,13 @@ export default function League() {
 
         {activeTab === 'running-dashboard' && (
           <RunningReportDashboard />
+        )}
+
+        {activeTab === 'running-season' && (
+          <RunningSeasonReport
+            runningData={runningData}
+            onDataUpload={setRunningData}
+          />
         )}
 
         {activeTab === 'team-average' && (

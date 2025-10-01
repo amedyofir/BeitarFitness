@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Search, Calendar, FileText, Download, Trash2, Eye, Upload } from 'lucide-react'
+import { Search, Calendar, FileText, Download, Trash2, Eye, Upload, FileDown } from 'lucide-react'
 import { CSVReportService } from '../../lib/csvReportService'
 import { CSVReportsList } from '../../types/csvReport'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 interface SimpleCSVReportsManagerProps {
   onLoadReport?: (data: any[]) => void // Parsed CSV data
@@ -98,6 +100,70 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
       }
     } catch (error: any) {
       alert(`Error downloading CSV: ${error.message}`)
+    }
+  }
+
+  const handleDownloadPDF = async (report: CSVReportsList) => {
+    try {
+      const result = await CSVReportService.loadCSVReport(report.matchday_number, report.opponent_team)
+      if (result.success && result.data) {
+        const parsedData = result.data.parsed_data
+
+        // Create PDF
+        const doc = new jsPDF('landscape')
+
+        // Add title
+        doc.setFontSize(18)
+        doc.setTextColor(255, 215, 0)
+        doc.text(`Matchday ${report.matchday_number} - Beitar vs ${report.opponent_team}`, 14, 15)
+
+        // Add metadata
+        doc.setFontSize(10)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Season: ${report.season} | Date: ${formatDate(report.match_date || report.uploaded_at)}`, 14, 22)
+        doc.text(`Total Players: ${report.total_rows}`, 14, 27)
+
+        // Prepare table data
+        if (parsedData && parsedData.length > 0) {
+          const headers = Object.keys(parsedData[0])
+          const rows = parsedData.map((row: any) => headers.map(header => row[header] || ''))
+
+          // Add table
+          ;(doc as any).autoTable({
+            head: [headers],
+            body: rows,
+            startY: 32,
+            theme: 'striped',
+            headStyles: {
+              fillColor: [255, 215, 0],
+              textColor: [0, 0, 0],
+              fontStyle: 'bold',
+              fontSize: 8
+            },
+            bodyStyles: {
+              fontSize: 7,
+              textColor: [50, 50, 50]
+            },
+            alternateRowStyles: {
+              fillColor: [245, 245, 245]
+            },
+            margin: { top: 32, right: 14, bottom: 14, left: 14 },
+            styles: {
+              cellPadding: 2,
+              overflow: 'linebreak',
+              fontSize: 7
+            }
+          })
+        }
+
+        // Save PDF
+        const filename = `${report.matchday_number}-vs-${report.opponent_team}.pdf`
+        doc.save(filename)
+      } else {
+        alert(`Error downloading PDF: ${result.error}`)
+      }
+    } catch (error: any) {
+      alert(`Error downloading PDF: ${error.message}`)
     }
   }
 
@@ -312,7 +378,7 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
         
         .actions {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
+          grid-template-columns: 1fr 1fr 1fr 1fr;
           gap: 8px;
         }
         
@@ -344,7 +410,12 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
           background: #3b82f6;
           color: white;
         }
-        
+
+        .pdf-btn {
+          background: #f97316;
+          color: white;
+        }
+
         .delete-btn {
           background: #ef4444;
           color: white;
@@ -479,7 +550,7 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
                     </>
                   )}
                 </button>
-                
+
                 <button
                   className="action-btn download-btn"
                   onClick={() => handleDownloadCSV(report)}
@@ -487,7 +558,15 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
                   <Download size={12} />
                   CSV
                 </button>
-                
+
+                <button
+                  className="action-btn pdf-btn"
+                  onClick={() => handleDownloadPDF(report)}
+                >
+                  <FileDown size={12} />
+                  PDF
+                </button>
+
                 <button
                   className="action-btn delete-btn"
                   onClick={() => handleDeleteReport(report.id)}
