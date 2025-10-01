@@ -6,12 +6,12 @@ import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
 import SimpleCSVReportsManager from './SimpleCSVReportsManager'
 import RunningReportDashboard from './RunningReportDashboard'
-import EnhancedTeamAverageReport from './EnhancedTeamAverageReport'
+import ByMatchComparison from './ByMatchComparison'
 import TopPlayersReport from './TopPlayersReport'
 import RunningSeasonReport from './RunningSeasonReport'
 
 export default function League() {
-  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'running-season' | 'team-average' | 'top-players'>('matchday-reports')
+  const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'running-season' | 'by-match' | 'top-players'>('matchday-reports')
   const [runningData, setRunningData] = useState<any[]>([])
   const [matchdayNumber, setMatchdayNumber] = useState('')
   const [selectedOpponent, setSelectedOpponent] = useState('')
@@ -123,11 +123,11 @@ export default function League() {
           Running Season
         </button>
         <button
-          onClick={() => setActiveTab('team-average')}
-          className={`tab-button ${activeTab === 'team-average' ? 'active' : ''}`}
+          onClick={() => setActiveTab('by-match')}
+          className={`tab-button ${activeTab === 'by-match' ? 'active' : ''}`}
         >
           <BarChart3 />
-          Team Average
+          By Match
         </button>
         <button
           onClick={() => setActiveTab('top-players')}
@@ -300,8 +300,8 @@ export default function League() {
           />
         )}
 
-        {activeTab === 'team-average' && (
-          <EnhancedTeamAverageReport />
+        {activeTab === 'by-match' && (
+          <ByMatchComparison />
         )}
 
         {activeTab === 'top-players' && (
