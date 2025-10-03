@@ -4,12 +4,10 @@ import React, { useState, useEffect } from 'react'
 import { Upload, FileText, PlayCircle, CheckCircle, AlertCircle, Users, Target } from 'lucide-react'
 import Papa from 'papaparse'
 import MatchdayReport from './MatchdayReport'
-import { saveOpponentStatistics, fetchAvailableOpponents, fetchOpponentStatistics, checkOpponentDataExists, parseOpponentCsvRow, parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
+import { saveOpponentStatistics, fetchAvailableOpponents, fetchAvailableTeams, fetchAllTeamsData, fetchOpponentStatistics, fetchOpponentUploadHistory, checkOpponentDataExists, parseOpponentCsvRow, parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
 import type { OpponentStatistics, OpponentMetadata } from '@/lib/opponentDataService'
 
-interface OpponentViewProps {}
-
-export default function OpponentView({}: OpponentViewProps) {
+export default function OpponentView() {
   const [currentStep, setCurrentStep] = useState(1)
   const [opponentName, setOpponentName] = useState('')
   const [csvFile1, setCsvFile1] = useState<File | null>(null)
@@ -25,6 +23,10 @@ export default function OpponentView({}: OpponentViewProps) {
   const [loadingHistorical, setLoadingHistorical] = useState(false)
   const [currentReportIndex, setCurrentReportIndex] = useState(0)
   const [totalMatchdays, setTotalMatchdays] = useState<number>(1)
+  const [uploadHistory, setUploadHistory] = useState<any[]>([])
+  const [selectedUploadDate, setSelectedUploadDate] = useState<string>('')
+  const [showUploadWizard, setShowUploadWizard] = useState(false)
+  const [selectedOpponent, setSelectedOpponent] = useState<string>('')
 
   // Israeli Premier League teams list
   const israeliClubs = [
@@ -52,18 +54,34 @@ export default function OpponentView({}: OpponentViewProps) {
   ]
 
   useEffect(() => {
-    // Fetch existing opponents on component mount
-    const loadExistingOpponents = async () => {
+    // Load ALL teams data from opponent_statistics on component mount
+    const loadDataFromDatabase = async () => {
       try {
-        const opponents = await fetchAvailableOpponents()
-        console.log('Available opponents:', opponents)
-        setExistingOpponents(opponents)
+        // Fetch ALL teams data (not just one opponent)
+        const allTeamsData = await fetchAllTeamsData()
+
+        if (allTeamsData && allTeamsData.length > 0) {
+          console.log(`✅ Loaded ${allTeamsData.length} teams from database`)
+
+          // Show the dashboard immediately with all teams data
+          setCsvData(allTeamsData)
+          setOpponentName('All Teams')  // Generic name since showing all teams
+          setSelectedOpponent('')  // Empty = "All Teams" selected in dropdown
+          setShowReport(true)
+          setCurrentStep(4)
+
+          // Also fetch opponents list for the carousel
+          const opponents = await fetchAvailableOpponents()
+          setExistingOpponents(opponents)
+        } else {
+          console.log('No data in database - user needs to upload')
+        }
       } catch (error) {
-        console.error('Error fetching opponents:', error)
+        console.error('Error loading data from database:', error)
       }
     }
-    
-    loadExistingOpponents()
+
+    loadDataFromDatabase()
   }, [])
 
   const handleOpponentSubmit = async () => {
@@ -183,18 +201,30 @@ export default function OpponentView({}: OpponentViewProps) {
       // Save opponent data to Supabase (overwrites existing)
       await saveOpponentStatistics(opponentData, opponentMetadata)
       console.log('Successfully saved opponent statistics to Supabase')
-      
-      // Update existing opponents list
+
+      // Reload data from database to show the first team
       try {
+        const teams = await fetchAvailableTeams()
+        if (teams.length > 0) {
+          const firstTeam = teams[0]
+          const data = await fetchOpponentStatistics(firstTeam)
+
+          if (data && data.length > 0) {
+            setCsvData(data)
+            setOpponentName(firstTeam)
+            setShowReport(true)
+            setCurrentStep(4)
+          }
+        }
+
+        // Update opponents list for carousel
         const updatedOpponents = await fetchAvailableOpponents()
         setExistingOpponents(updatedOpponents)
       } catch (fetchError) {
-        console.log('Note: Could not update opponents list, but data was saved successfully')
+        console.log('Note: Could not reload data, but save was successful')
       }
-      
+
       setIsProcessing(false)
-      setShowReport(true)
-      setCurrentStep(4)
     } catch (error) {
       console.error('Error saving opponent data:', error)
       setSaveError('Failed to save opponent data to database. Please try again.')
@@ -217,15 +247,24 @@ export default function OpponentView({}: OpponentViewProps) {
     setLoadingHistorical(false)
     setCurrentReportIndex(0)
     setTotalMatchdays(1)
+    setShowUploadWizard(false)
   }
 
-  const loadHistoricalReport = async (opponent: string) => {
+  const loadHistoricalReport = async (opponent: string, uploadDate?: string) => {
     setLoadingHistorical(true)
     try {
-      const data = await fetchOpponentStatistics(opponent)
+      // Fetch upload history for this opponent
+      const history = await fetchOpponentUploadHistory(opponent)
+      setUploadHistory(history)
+
+      // If uploadDate specified, use it. Otherwise use latest
+      const targetUploadDate = uploadDate || history[0]?.upload_date
+
+      const data = await fetchOpponentStatistics(opponent, '2025-2026', targetUploadDate)
       if (data && data.length > 0) {
         setCsvData(data)
         setOpponentName(opponent)
+        setSelectedUploadDate(targetUploadDate || '')
         setShowReport(true)
         setCurrentStep(4)
       } else {
@@ -234,6 +273,22 @@ export default function OpponentView({}: OpponentViewProps) {
     } catch (error) {
       console.error('Error loading historical opponent report:', error)
       alert('Failed to load historical opponent report')
+    }
+    setLoadingHistorical(false)
+  }
+
+  const changeUploadVersion = async (uploadDate: string) => {
+    if (!opponentName) return
+    setLoadingHistorical(true)
+    try {
+      const data = await fetchOpponentStatistics(opponentName, '2025-2026', uploadDate)
+      if (data && data.length > 0) {
+        setCsvData(data)
+        setSelectedUploadDate(uploadDate)
+      }
+    } catch (error) {
+      console.error('Error switching upload version:', error)
+      alert('Failed to load selected upload version')
     }
     setLoadingHistorical(false)
   }
@@ -337,147 +392,135 @@ export default function OpponentView({}: OpponentViewProps) {
         })}
       </div>
 
-      {/* Historical Reports Carousel */}
-      {existingOpponents.length > 0 && (
-        <div className="glass-card" style={{ padding: '20px', marginBottom: '20px' }}>
-          <h3 style={{ color: '#FFD700', marginBottom: '15px', fontFamily: 'Montserrat', fontSize: '16px', textAlign: 'center' }}>
-            🎯 Previously Analyzed Opponents ({currentReportIndex + 1} of {existingOpponents.length})
-          </h3>
-          
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {/* Previous Arrow */}
-            <button
-              onClick={prevReport}
-              disabled={existingOpponents.length <= 1}
-              style={{
-                background: existingOpponents.length <= 1 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 215, 0, 0.2)',
-                border: '1px solid rgba(255, 215, 0, 0.3)',
-                borderRadius: '50%',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: existingOpponents.length <= 1 ? 'not-allowed' : 'pointer',
-                color: existingOpponents.length <= 1 ? '#666' : '#FFD700',
-                fontSize: '18px',
-                fontWeight: 'bold'
-              }}
-            >
-              ←
-            </button>
+      {/* Latest Opponent Report - Show only the most recent upload */}
+      {existingOpponents.length > 0 && !showReport && (() => {
+        const latestOpponent = existingOpponents[0]
+        return (
+          <div className="glass-card" style={{ padding: '20px', marginBottom: '20px' }}>
+            <h3 style={{ color: '#FFD700', marginBottom: '20px', fontFamily: 'Montserrat', fontSize: '18px', textAlign: 'center' }}>
+              🎯 Latest Opponent Analysis
+            </h3>
 
-            {/* Current Report Card */}
             <div style={{
-              flex: 1,
               background: 'rgba(255, 255, 255, 0.05)',
               border: '2px solid rgba(255, 215, 0, 0.3)',
               borderRadius: '12px',
-              padding: '20px',
+              padding: '30px',
               textAlign: 'center',
-              position: 'relative'
+              maxWidth: '400px',
+              margin: '0 auto'
             }}>
-              {(() => {
-                const opponent = existingOpponents[currentReportIndex]
-                return (
-                  <>
-                    <h4 style={{ color: '#FFD700', margin: '0 0 8px 0', fontFamily: 'Montserrat', fontSize: '18px', fontWeight: '600' }}>
-                      {opponent.opponent_name}
-                    </h4>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' }}>
-                      <span style={{ 
-                        background: 'rgba(34, 197, 94, 0.2)', 
-                        color: '#22c55e', 
-                        padding: '4px 8px', 
-                        borderRadius: '6px', 
-                        fontSize: '12px',
-                        fontFamily: 'Montserrat',
-                        fontWeight: '500'
-                      }}>
-                        {opponent.total_teams} Teams
-                      </span>
-                      <span style={{ 
-                        background: 'rgba(59, 130, 246, 0.2)', 
-                        color: '#3b82f6', 
-                        padding: '4px 8px', 
-                        borderRadius: '6px', 
-                        fontSize: '12px',
-                        fontFamily: 'Montserrat',
-                        fontWeight: '500'
-                      }}>
-                        {opponent.total_matchdays} Matchdays
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => loadHistoricalReport(opponent.opponent_name)}
-                      disabled={loadingHistorical}
-                      style={{
-                        background: loadingHistorical ? 'rgba(255, 255, 255, 0.1)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
-                        color: loadingHistorical ? 'var(--secondary-text)' : '#000',
-                        border: 'none',
-                        padding: '12px 24px',
-                        borderRadius: '8px',
-                        fontFamily: 'Montserrat',
-                        fontWeight: '600',
-                        cursor: loadingHistorical ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        minWidth: '120px'
-                      }}
-                    >
-                      {loadingHistorical ? 'Loading...' : '🎯 View Analysis'}
-                    </button>
-                  </>
-                )
-              })()}
+              <h4 style={{
+                color: '#FFD700',
+                margin: '0 0 16px 0',
+                fontFamily: 'Montserrat',
+                fontSize: '20px',
+                fontWeight: '600'
+              }}>
+                {latestOpponent.opponent_name}
+              </h4>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <span style={{
+                  background: 'rgba(34, 197, 94, 0.2)',
+                  color: '#22c55e',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '500'
+                }}>
+                  {latestOpponent.total_teams} Teams
+                </span>
+                <span style={{
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  color: '#3b82f6',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '500'
+                }}>
+                  {latestOpponent.total_matchdays} Matchdays
+                </span>
+              </div>
+
+              <p style={{
+                color: 'var(--secondary-text)',
+                fontSize: '12px',
+                marginBottom: '20px',
+                fontFamily: 'Montserrat',
+                fontStyle: 'italic'
+              }}>
+                Updated: {new Date(latestOpponent.upload_date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </p>
+
+              <button
+                onClick={() => loadHistoricalReport(latestOpponent.opponent_name)}
+                disabled={loadingHistorical}
+                style={{
+                  background: loadingHistorical ? 'rgba(255, 255, 255, 0.1)' : 'linear-gradient(135deg, #FFD700, #FFA500)',
+                  color: loadingHistorical ? 'var(--secondary-text)' : '#000',
+                  border: 'none',
+                  padding: '12px 32px',
+                  borderRadius: '8px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '600',
+                  cursor: loadingHistorical ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  width: '100%'
+                }}
+              >
+                {loadingHistorical ? 'Loading...' : '🎯 View Analysis'}
+              </button>
             </div>
 
-            {/* Next Arrow */}
-            <button
-              onClick={nextReport}
-              disabled={existingOpponents.length <= 1}
-              style={{
-                background: existingOpponents.length <= 1 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 215, 0, 0.2)',
-                border: '1px solid rgba(255, 215, 0, 0.3)',
-                borderRadius: '50%',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: existingOpponents.length <= 1 ? 'not-allowed' : 'pointer',
-                color: existingOpponents.length <= 1 ? '#666' : '#FFD700',
-                fontSize: '18px',
-                fontWeight: 'bold'
-              }}
-            >
-              →
-            </button>
+            {existingOpponents.length > 1 && (
+              <p style={{
+                color: 'var(--secondary-text)',
+                fontSize: '12px',
+                marginTop: '16px',
+                fontFamily: 'Montserrat',
+                textAlign: 'center',
+                fontStyle: 'italic'
+              }}>
+                {existingOpponents.length - 1} other opponent{existingOpponents.length > 2 ? 's' : ''} available
+              </p>
+            )}
           </div>
+        )
+      })()}
 
-          {/* Dots Navigation */}
-          {existingOpponents.length > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '15px' }}>
-              {existingOpponents.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToReport(index)}
-                  style={{
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: index === currentReportIndex ? '#FFD700' : 'rgba(255, 255, 255, 0.3)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                />
-              ))}
-            </div>
-          )}
+      {/* Upload New Data Section */}
+      {!showReport && !showUploadWizard && (
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <button
+            onClick={() => setShowUploadWizard(true)}
+            style={{
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              color: '#000',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              fontFamily: 'Montserrat',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            ➕ Upload New Opponent Analysis
+          </button>
         </div>
       )}
 
       {/* Step Content */}
+      {showUploadWizard && !showReport && (
       <div className="glass-card" style={{ padding: '30px', minHeight: '300px' }}>
         {/* Step 1: Select Opponent */}
         {currentStep === 1 && (
@@ -615,8 +658,8 @@ export default function OpponentView({}: OpponentViewProps) {
 
             {dataExists && (
               <div style={{
-                background: 'rgba(251, 191, 36, 0.1)',
-                border: '1px solid rgba(251, 191, 36, 0.3)',
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
                 borderRadius: '8px',
                 padding: '12px',
                 marginBottom: '20px',
@@ -625,9 +668,9 @@ export default function OpponentView({}: OpponentViewProps) {
                 justifyContent: 'center',
                 gap: '8px'
               }}>
-                <AlertCircle size={16} color="#fbbf24" />
-                <p style={{ color: '#fbbf24', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  Data exists for {opponentName}. New data will replace existing.
+                <AlertCircle size={16} color="#22c55e" />
+                <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
+                  Previous uploads exist for {opponentName}. New upload will be saved as a new version.
                 </p>
               </div>
             )}
@@ -784,7 +827,7 @@ export default function OpponentView({}: OpponentViewProps) {
                   Teams: {csvData.length}<br />
                   Matchdays: {totalMatchdays}<br />
                   Season: 2025-2026<br />
-                  Action: {dataExists ? 'Will overwrite existing data' : 'Will create new analysis'}
+                  Action: {dataExists ? 'Will save as new version (history preserved)' : 'Will create new analysis'}
                 </p>
               </div>
             </div>
@@ -873,11 +916,12 @@ export default function OpponentView({}: OpponentViewProps) {
           </div>
         )}
       </div>
-      
+      )}
+
       {/* Show Report */}
       {showReport && csvData.length > 0 && (
         <div style={{ marginTop: '40px' }}>
-          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
               onClick={() => setShowReport(false)}
               style={{
@@ -894,8 +938,102 @@ export default function OpponentView({}: OpponentViewProps) {
             >
               ← Back to Opponent Analysis
             </button>
+
+            {/* Opponent Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{
+                color: 'var(--primary-text)',
+                fontSize: '14px',
+                fontFamily: 'Montserrat',
+                fontWeight: '600'
+              }}>
+                🎯 Focus on opponent:
+              </label>
+              <select
+                value={selectedOpponent}
+                onChange={(e) => setSelectedOpponent(e.target.value)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--primary-text)',
+                  fontSize: '14px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  minWidth: '200px'
+                }}
+              >
+                <option value="">All Teams</option>
+                {csvData.map((team: any) => {
+                  const teamName = team.Team || team.team_full_name || team.teamFullName || 'Unknown'
+                  return (
+                    <option key={teamName} value={teamName}>
+                      {teamName}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+
+            {/* Upload History Selector */}
+            {uploadHistory.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{
+                  color: 'var(--primary-text)',
+                  fontSize: '14px',
+                  fontFamily: 'Montserrat',
+                  fontWeight: '600'
+                }}>
+                  📅 Upload Version:
+                </label>
+                <select
+                  value={selectedUploadDate}
+                  onChange={(e) => changeUploadVersion(e.target.value)}
+                  disabled={loadingHistorical}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 215, 0, 0.3)',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: 'var(--primary-text)',
+                    fontSize: '14px',
+                    fontFamily: 'Montserrat',
+                    fontWeight: '600',
+                    cursor: loadingHistorical ? 'not-allowed' : 'pointer',
+                    minWidth: '200px'
+                  }}
+                >
+                  {uploadHistory.map((upload, index) => (
+                    <option key={upload.upload_date} value={upload.upload_date}>
+                      {index === 0 && '🆕 '}
+                      {new Date(upload.upload_date).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                      {' '}({upload.total_matchdays} MD)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {uploadHistory.length > 1 && (
+              <span style={{
+                color: 'var(--secondary-text)',
+                fontSize: '12px',
+                fontFamily: 'Montserrat',
+                fontStyle: 'italic'
+              }}>
+                {uploadHistory.length} uploads available
+              </span>
+            )}
           </div>
-          <MatchdayReport csvData={csvData} matchdayNumber={`${opponentName} Analysis`} isOpponentAnalysis={true} selectedOpponent={opponentName} />
+          <MatchdayReport csvData={csvData} matchdayNumber={`${opponentName} Analysis`} isOpponentAnalysis={true} selectedOpponent={selectedOpponent} />
         </div>
       )}
     </div>

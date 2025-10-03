@@ -15,6 +15,7 @@ import SoccerPitch from './SoccerPitch'
 import OptaDataUploader from './OptaDataUploader'
 import StatsComparison from './StatsComparison'
 import { fetchTeamMatchStatistics, fetchTeamMatchMetadata, fetchAggregatedTeamStatistics, checkAggregatedDataExists } from '@/lib/teamMatchService'
+import { fetchAllTeamsData } from '@/lib/opponentDataService'
 import { BarChart3, Trophy, Scale, FileText, Activity, Zap, Route, Target, Users, Upload } from 'lucide-react'
 
 // Matchup Analysis Interface Component
@@ -947,7 +948,10 @@ function MatchupAnalysisInterface() {
 }
 
 export default function CoachDashboard() {
-  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps' | 'corners' | 'matchup'>('weekly-running')
+  const [activeCoachTab, setActiveCoachTab] = useState<'weekly-running' | 'match-reports' | 'nutrition' | 'match-stats' | 'match-gps-league' | 'training-gps' | 'corners' | 'matchup' | 'opponent-view'>('weekly-running')
+  const [opponentViewData, setOpponentViewData] = useState<any[]>([])
+  const [loadingOpponentView, setLoadingOpponentView] = useState(false)
+  const [selectedOpponent, setSelectedOpponent] = useState<string>('')
   const [activeNutritionTab, setActiveNutritionTab] = useState<'by-player' | 'team-overview'>('by-player')
   const [activeTrainingTab, setActiveTrainingTab] = useState<'distance' | 'intensity'>('distance')
   const [availableMatches, setAvailableMatches] = useState<any[]>([])
@@ -961,7 +965,21 @@ export default function CoachDashboard() {
     if (activeCoachTab === 'match-stats') {
       loadAvailableMatches()
     }
+    if (activeCoachTab === 'opponent-view') {
+      loadOpponentViewData()
+    }
   }, [activeCoachTab])
+
+  const loadOpponentViewData = async () => {
+    setLoadingOpponentView(true)
+    try {
+      const data = await fetchAllTeamsData()
+      setOpponentViewData(data)
+    } catch (error) {
+      console.error('Error loading opponent view data:', error)
+    }
+    setLoadingOpponentView(false)
+  }
 
   const loadAvailableMatches = async () => {
     console.log('🔍 Loading available matches...')
@@ -1188,6 +1206,13 @@ export default function CoachDashboard() {
         >
           <Users />
           Matchup Analysis
+        </button>
+        <button
+          onClick={() => setActiveCoachTab('opponent-view')}
+          className={`tab-button ${activeCoachTab === 'opponent-view' ? 'active' : ''}`}
+        >
+          <Trophy />
+          Opponent View
         </button>
       </nav>
 
@@ -1416,6 +1441,68 @@ export default function CoachDashboard() {
 
         {activeCoachTab === 'matchup' && (
           <MatchupAnalysisInterface />
+        )}
+
+        {activeCoachTab === 'opponent-view' && (
+          <div className="opponent-view-tab">
+            {loadingOpponentView ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
+                <p style={{ fontFamily: 'Montserrat' }}>Loading opponent view data...</p>
+              </div>
+            ) : opponentViewData.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
+                <p style={{ fontFamily: 'Montserrat' }}>No opponent data available</p>
+                <p style={{ fontFamily: 'Montserrat', fontSize: '12px' }}>Upload opponent data in Developer Mode → Opponent View</p>
+              </div>
+            ) : (
+              <>
+                {/* Opponent Selector */}
+                <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                  <label style={{
+                    color: 'var(--primary-text)',
+                    fontSize: '14px',
+                    fontFamily: 'Montserrat',
+                    fontWeight: '600'
+                  }}>
+                    🎯 Focus on opponent:
+                  </label>
+                  <select
+                    value={selectedOpponent}
+                    onChange={(e) => setSelectedOpponent(e.target.value)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 215, 0, 0.3)',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: 'var(--primary-text)',
+                      fontSize: '14px',
+                      fontFamily: 'Montserrat',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      minWidth: '200px'
+                    }}
+                  >
+                    <option value="">All Teams</option>
+                    {opponentViewData.map((team: any) => {
+                      const teamName = team.Team || team.team_full_name || team.teamFullName || 'Unknown'
+                      return (
+                        <option key={teamName} value={teamName}>
+                          {teamName}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                <MatchdayReport
+                  csvData={opponentViewData}
+                  matchdayNumber="All Teams Analysis"
+                  isOpponentAnalysis={true}
+                  selectedOpponent={selectedOpponent}
+                />
+              </>
+            )}
+          </div>
         )}
 
       </div>

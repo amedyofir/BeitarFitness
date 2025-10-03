@@ -84,6 +84,9 @@ export interface OpponentMetadata {
   season?: string
   total_teams?: number
   total_matchdays?: number
+  upload_date?: string
+  csv_filename?: string
+  notes?: string
 }
 
 // Function to parse second CSV row (our team's metrics for press score)
@@ -246,22 +249,45 @@ export const mergeOpponentStatistics = (
   })
 }
 
-// Save opponent statistics (overwrites existing data for the same opponent)
+// Save opponent statistics (overwrites existing data)
 export const saveOpponentStatistics = async (data: OpponentStatistics[], metadata: OpponentMetadata) => {
   try {
-    console.log(`💾 Saving opponent statistics for: ${metadata.opponent_name}`)
-    
-    // First, save or update opponent metadata (simplified)
+    console.log(`💾 Saving opponent statistics (${data.length} teams)`)
+
+    const uploadDate = new Date().toISOString()
+    const season = metadata.season || '2025-2026'
+
+    // Delete all existing data for this season (fresh start each upload)
+    const { error: deleteStatsError } = await supabase
+      .from('opponent_statistics')
+      .delete()
+      .eq('season', season)
+
+    if (deleteStatsError) {
+      console.error('Error deleting old statistics:', deleteStatsError)
+    }
+
+    const { error: deleteMetaError } = await supabase
+      .from('opponent_metadata')
+      .delete()
+      .eq('season', season)
+
+    if (deleteMetaError) {
+      console.error('Error deleting old metadata:', deleteMetaError)
+    }
+
+    // Insert new metadata
     const { error: metadataError } = await supabase
       .from('opponent_metadata')
-      .upsert({
-        opponent_name: metadata.opponent_name,
-        season: metadata.season || '2025-2026',
+      .insert({
+        opponent_name: 'All Teams', // Generic since no specific opponent selected yet
+        season: season,
         total_teams: data.length,
         total_matchdays: metadata.total_matchdays || 0,
-        uploaded_at: new Date().toISOString()
-      }, {
-        onConflict: 'opponent_name,season'
+        upload_date: uploadDate,
+        csv_filename: metadata.csv_filename,
+        notes: metadata.notes,
+        uploaded_at: uploadDate
       })
 
     if (metadataError) {
@@ -269,28 +295,84 @@ export const saveOpponentStatistics = async (data: OpponentStatistics[], metadat
       throw new Error(`Metadata save failed: ${metadataError.message || metadataError}`)
     }
 
-    // Delete existing data for this opponent to overwrite
-    const { error: deleteError } = await supabase
-      .from('opponent_statistics')
-      .delete()
-      .eq('opponent_name', metadata.opponent_name)
-      .eq('season', metadata.season || '2025-2026')
-
-    if (deleteError) {
-      console.error('Error deleting existing opponent data:', deleteError)
-      throw deleteError
-    }
-
-    // Insert new opponent statistics (only database columns)
+    // Insert new opponent statistics with ALL fields
     const dataWithMetadata = data.map(team => ({
-      opponent_name: metadata.opponent_name,
-      season: metadata.season || '2025-2026',
+      opponent_name: team.team_full_name,
+      season: season,
       team_full_name: team.team_full_name,
+
+      // Team Information
+      team_rank: team.team_rank,
+      team_id: team.team_id,
+      team_image_id: team.team_image_id,
+      team_short_name: team.team_short_name,
+      team_abbrev_name: team.team_abbrev_name,
+      team_color: team.team_color,
+      opta_team_id: team.opta_team_id,
+
+      // League Information
+      league_id: team.league_id,
+      league_name: team.league_name,
+
+      // Match Performance Metrics (CSV 1)
       goals_scored: team.goals_scored,
+      expected_assists: team.expected_assists,
+      expected_goals_per_shot: team.expected_goals_per_shot,
+      expected_goals: team.expected_goals,
+      ground_duels: team.ground_duels,
+      dribbles_successful: team.dribbles_successful,
+
+      // Positional Play Metrics (CSV 1)
+      start_a3_end_box: team.start_a3_end_box,
+      start_a2_end_box: team.start_a2_end_box,
+      pass_completed_to_box: team.pass_completed_to_box,
+      end_box_using_corner: team.end_box_using_corner,
+      start_a2_end_a3: team.start_a2_end_a3,
+      start_a1_end_box: team.start_a1_end_box,
+      start_a2_end_a3_alt: team.start_a2_end_a3_alt,
+      start_a1_end_a3: team.start_a1_end_a3,
+      start_a1_end_a2: team.start_a1_end_a2,
+      seq_start_att_3rd: team.seq_start_att_3rd,
+      seq_start_mid_3rd: team.seq_start_mid_3rd,
+      seq_start_a1: team.seq_start_a1,
+
+      // Possession & Passing (CSV 1)
+      aerial_percentage: team.aerial_percentage,
+      ground_percentage: team.ground_percentage,
+      cross_open: team.cross_open,
+      pass_from_assist_to_golden: team.pass_from_assist_to_golden,
+      pass_assist_zone: team.pass_assist_zone,
+
+      // Shooting Metrics (CSV 1)
+      shots_on_goal_penalty_area: team.shots_on_goal_penalty_area,
+      shots_on_goal_from_box: team.shots_on_goal_from_box,
+      shot_from_golden: team.shot_from_golden,
+      shot_from_box: team.shot_from_box,
       shots_on_goal: team.shots_on_goal,
+      shots_including_blocked: team.shots_including_blocked,
+      actual_goals: team.actual_goals,
+
+      // Ball Control (CSV 1)
       touches: team.touches,
+      touch_opponent_box: team.touch_opponent_box,
+      drop_forward_up_percentage: team.drop_forward_up_percentage,
+      possession_won_opponent_half: team.possession_won_opponent_half,
+
+      // Tactical Metrics (CSV 1)
+      avg_sequence_time: team.avg_sequence_time,
+      ppda_40: team.ppda_40,
+
+      // Press Score Components from CSV 2 (our team's metrics)
+      our_avg_sequence_time: team.our_avg_sequence_time,
+      our_long_ball_percentage: team.our_long_ball_percentage,
+      our_s1e3: team.our_s1e3,
+      our_s1e2: team.our_s1e2,
+      our_s1: team.our_s1,
+
+      // Metadata
       total_matchdays: metadata.total_matchdays || 0,
-      uploaded_at: new Date().toISOString()
+      upload_date: uploadDate,
+      uploaded_at: uploadDate
     }))
 
     const { error: insertError } = await supabase
@@ -302,23 +384,52 @@ export const saveOpponentStatistics = async (data: OpponentStatistics[], metadat
       throw new Error(`Data insert failed: ${insertError.message || insertError}`)
     }
 
-    return { success: true, message: `Successfully saved opponent statistics for ${metadata.opponent_name}` }
+    return {
+      success: true,
+      message: `Successfully saved statistics for ${data.length} teams`,
+      upload_date: uploadDate
+    }
   } catch (error) {
     console.error('Error in saveOpponentStatistics:', error)
     throw error
   }
 }
 
-// Fetch opponent statistics for a specific opponent
-export const fetchOpponentStatistics = async (opponentName: string, season: string = '2025-2026') => {
+// Fetch opponent statistics for a specific opponent and upload_date (latest if not specified)
+export const fetchOpponentStatistics = async (
+  opponentName: string,
+  season: string = '2025-2026',
+  uploadDate?: string
+) => {
   try {
     console.log(`🔍 Fetching opponent statistics for: ${opponentName}`)
-    const { data, error } = await supabase
+
+    let query = supabase
       .from('opponent_statistics')
       .select('*')
       .eq('opponent_name', opponentName)
       .eq('season', season)
-      .order('team_full_name')
+
+    // If uploadDate is specified, filter by it. Otherwise, get latest upload
+    if (uploadDate) {
+      query = query.eq('upload_date', uploadDate)
+    } else {
+      // Get the most recent upload_date for this opponent
+      const { data: latestMetadata } = await supabase
+        .from('opponent_metadata')
+        .select('upload_date')
+        .eq('opponent_name', opponentName)
+        .eq('season', season)
+        .order('upload_date', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (latestMetadata?.upload_date) {
+        query = query.eq('upload_date', latestMetadata.upload_date)
+      }
+    }
+
+    const { data, error } = await query.order('team_full_name')
 
     if (error) {
       console.error('Error fetching opponent statistics:', error)
@@ -342,23 +453,132 @@ export const fetchOpponentStatistics = async (opponentName: string, season: stri
   }
 }
 
-// Fetch all available opponents
+// Fetch all team names from latest upload (for opponent selection)
+export const fetchAvailableTeams = async (season: string = '2025-2026') => {
+  try {
+    const { data, error } = await supabase
+      .from('opponent_statistics')
+      .select('team_full_name')
+      .eq('season', season)
+      .order('team_full_name')
+
+    if (error) {
+      console.error('Error fetching available teams:', error)
+      throw error
+    }
+
+    // Return unique team names
+    const uniqueTeams = [...new Set(data?.map(d => d.team_full_name) || [])]
+    return uniqueTeams
+  } catch (error) {
+    console.error('Error in fetchAvailableTeams:', error)
+    throw error
+  }
+}
+
+// Fetch ALL teams data from latest upload (for showing dashboard immediately)
+export const fetchAllTeamsData = async (season: string = '2025-2026') => {
+  try {
+    console.log(`🔍 Fetching all teams data for season: ${season}`)
+
+    // Get the most recent upload_date
+    const { data: latestMetadata } = await supabase
+      .from('opponent_metadata')
+      .select('upload_date')
+      .eq('season', season)
+      .order('upload_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!latestMetadata?.upload_date) {
+      console.log('No data found in database')
+      return []
+    }
+
+    // Fetch all teams for this upload_date
+    const { data, error } = await supabase
+      .from('opponent_statistics')
+      .select('*')
+      .eq('season', season)
+      .eq('upload_date', latestMetadata.upload_date)
+      .order('team_full_name')
+
+    if (error) {
+      console.error('Error fetching all teams data:', error)
+      throw error
+    }
+
+    // Add field aliases for MatchdayReport compatibility
+    const enrichedData = (data || []).map((team, index) => ({
+      ...team,
+      Team: team.team_full_name,
+      teamFullName: team.team_full_name,
+      Rank: index + 1,
+      team_rank: index + 1
+    }))
+
+    console.log(`✅ Loaded ${enrichedData.length} teams from database`)
+    return enrichedData
+  } catch (error) {
+    console.error('Error in fetchAllTeamsData:', error)
+    throw error
+  }
+}
+
+// Fetch all available opponents (with latest upload info)
 export const fetchAvailableOpponents = async (season: string = '2025-2026') => {
   try {
+    // Get all uploads for this season, ordered by upload_date (newest first)
     const { data, error } = await supabase
       .from('opponent_metadata')
       .select('*')
       .eq('season', season)
-      .order('opponent_name')
+      .order('upload_date', { ascending: false })
 
     if (error) {
       console.error('Error fetching available opponents:', error)
       throw error
     }
 
-    return data || []
+    // Group by opponent_name and keep only the latest upload for each
+    const uniqueOpponents = new Map<string, any>()
+    data?.forEach(opponent => {
+      if (!uniqueOpponents.has(opponent.opponent_name)) {
+        uniqueOpponents.set(opponent.opponent_name, opponent)
+      }
+    })
+
+    // Convert to array and keep sorted by upload_date (newest first)
+    return Array.from(uniqueOpponents.values()).sort((a, b) =>
+      new Date(b.upload_date).getTime() - new Date(a.upload_date).getTime()
+    )
   } catch (error) {
     console.error('Error in fetchAvailableOpponents:', error)
+    throw error
+  }
+}
+
+// Fetch all upload history for a specific opponent
+export const fetchOpponentUploadHistory = async (
+  opponentName: string,
+  season: string = '2025-2026'
+) => {
+  try {
+    const { data, error } = await supabase
+      .from('opponent_metadata')
+      .select('*')
+      .eq('opponent_name', opponentName)
+      .eq('season', season)
+      .order('upload_date', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching opponent upload history:', error)
+      throw error
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Error in fetchOpponentUploadHistory:', error)
     throw error
   }
 }
@@ -385,34 +605,66 @@ export const checkOpponentDataExists = async (opponentName: string, season: stri
   }
 }
 
-// Delete opponent data
-export const deleteOpponentData = async (opponentName: string, season: string = '2025-2026') => {
+// Delete opponent data (specific upload or all uploads)
+export const deleteOpponentData = async (
+  opponentName: string,
+  season: string = '2025-2026',
+  uploadDate?: string
+) => {
   try {
-    // Delete statistics
-    const { error: statsError } = await supabase
-      .from('opponent_statistics')
-      .delete()
-      .eq('opponent_name', opponentName)
-      .eq('season', season)
+    if (uploadDate) {
+      // Delete specific upload
+      const { error: statsError } = await supabase
+        .from('opponent_statistics')
+        .delete()
+        .eq('opponent_name', opponentName)
+        .eq('season', season)
+        .eq('upload_date', uploadDate)
 
-    if (statsError) {
-      console.error('Error deleting opponent statistics:', statsError)
-      throw statsError
+      if (statsError) {
+        console.error('Error deleting opponent statistics:', statsError)
+        throw statsError
+      }
+
+      const { error: metadataError } = await supabase
+        .from('opponent_metadata')
+        .delete()
+        .eq('opponent_name', opponentName)
+        .eq('season', season)
+        .eq('upload_date', uploadDate)
+
+      if (metadataError) {
+        console.error('Error deleting opponent metadata:', metadataError)
+        throw metadataError
+      }
+
+      return { success: true, message: `Successfully deleted upload from ${new Date(uploadDate).toLocaleDateString()} for ${opponentName}` }
+    } else {
+      // Delete all uploads for this opponent
+      const { error: statsError } = await supabase
+        .from('opponent_statistics')
+        .delete()
+        .eq('opponent_name', opponentName)
+        .eq('season', season)
+
+      if (statsError) {
+        console.error('Error deleting opponent statistics:', statsError)
+        throw statsError
+      }
+
+      const { error: metadataError } = await supabase
+        .from('opponent_metadata')
+        .delete()
+        .eq('opponent_name', opponentName)
+        .eq('season', season)
+
+      if (metadataError) {
+        console.error('Error deleting opponent metadata:', metadataError)
+        throw metadataError
+      }
+
+      return { success: true, message: `Successfully deleted all data for ${opponentName}` }
     }
-
-    // Delete metadata
-    const { error: metadataError } = await supabase
-      .from('opponent_metadata')
-      .delete()
-      .eq('opponent_name', opponentName)
-      .eq('season', season)
-
-    if (metadataError) {
-      console.error('Error deleting opponent metadata:', metadataError)
-      throw metadataError
-    }
-
-    return { success: true, message: `Successfully deleted data for ${opponentName}` }
   } catch (error) {
     console.error('Error in deleteOpponentData:', error)
     throw error

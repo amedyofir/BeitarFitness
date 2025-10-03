@@ -3,15 +3,17 @@
 import React from 'react'
 import { Shield, Download, FileText } from 'lucide-react'
 import { exportElementForWhatsApp, downloadImage, validateImageForWhatsApp } from '../../utils/whatsappExport'
+import { getTeamLogoUrl } from '../../lib/teamLogos'
 
 interface MatchdayReportProps {
   csvData: any[]
   matchdayNumber: string
   isOpponentAnalysis?: boolean
   selectedOpponent?: string
+  showSimpleControls?: boolean
 }
 
-export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnalysis = false, selectedOpponent }: MatchdayReportProps) {
+export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnalysis = false, selectedOpponent, showSimpleControls = false }: MatchdayReportProps) {
   if (!csvData || csvData.length === 0) {
     return (
       <div style={{ padding: '20px', color: '#fff' }}>
@@ -598,7 +600,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: '#0b0b0f' }}>
+    <div style={{ position: 'relative', width: '100%', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', background: '#000000' }}>
       {/* Download Buttons */}
       <div style={{
         position: 'absolute',
@@ -648,7 +650,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
       </div>
 
       <div id="matchday-report-full" style={{
-        background: '#0b0b0f',
+        background: '#000000',
         padding: '20px',
         color: '#fff',
         fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -661,36 +663,53 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         alignItems: 'stretch'
       }}>
         {/* Header */}
-        <div style={{ 
-          background: 'linear-gradient(135deg, #1a1f2e 0%, #0a0a0a 100%)',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
-          padding: '20px',
+          padding: '30px 20px',
           marginBottom: '16px',
           border: '1px solid #333',
           width: '100%',
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <img 
-              src="/beitar-logo.png" 
-              alt="Beitar Logo" 
-              style={{ width: '18px', height: '18px' }}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '16px' }}>
+            <img
+              src="/beitar-logo.png"
+              alt="Beitar Logo"
+              style={{ width: '60px', height: '60px', objectFit: 'contain' }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
               }}
             />
-            <span style={{ color: '#FFD700', fontSize: '12px', fontWeight: '600' }}>FCBJ DATA</span>
+            <span style={{ color: '#FFD700', fontSize: '24px', fontWeight: '700', letterSpacing: '2px' }}>FCBJ DATA</span>
           </div>
-          
-          <h1 style={{ 
-            color: '#FFD700', 
-            fontSize: '18px', 
+
+          {/* Gold Separator Line */}
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '16px'
+          }} />
+
+          <h1 style={{
+            color: '#FFD700',
+            fontSize: '18px',
             fontWeight: '700',
-            marginBottom: '8px' 
+            marginBottom: '8px',
+            textAlign: 'center'
           }}>
-            {matchdayNumber.includes('Season') ? '🏆 Season Summary Report' : `Matchday ${matchdayNumber} Report`}
+            {matchdayNumber.includes('Season') ? '🏆 Season Summary Report' :
+             isOpponentAnalysis ? (
+               <>
+                 <span style={{ color: '#FFD700' }}>Opponent View</span>
+                 <br />
+                 <span style={{ color: '#888', fontSize: '14px', fontWeight: '400' }}>How other teams performed against this team</span>
+               </>
+             ) :
+             `Matchday ${matchdayNumber} Report`}
           </h1>
           
           {matchdayNumber.includes('Season') && (
@@ -716,9 +735,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
 
           {/* Press Metrics Section */}
           <div style={{ marginBottom: '6px' }}>
-            <div style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
-              ⚡ Press Metrics & Scoring
+            <div style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+              Press Metrics & Scoring
             </div>
+            <div style={{
+              width: '100%',
+              height: '2px',
+              background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+              marginBottom: '12px'
+            }} />
             
             <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
               <thead>
@@ -749,8 +774,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                       }}>
                         {index + 1}
                       </td>
-                      <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
-                        {getTeamName(team)}
+                      <td style={{ padding: '6px 8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
+                            {getTeamName(team)}
+                          </span>
+                          <img
+                            src={getTeamLogoUrl(getTeamName(team))}
+                            alt={getTeamName(team)}
+                            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        </div>
                       </td>
                       <td style={{ 
                         padding: '8px 12px', 
@@ -792,7 +830,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         color: isOpponentAnalysis ? getPressScoreColor(team.ppda40Score) : getScoreColor(team.ppda40Score),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, 'ppda40') || 0).toFixed(2)} ({team.ppda40Score.toFixed(0)})
+                        {parseFloat(getField(team, 'ppda40') || 0).toFixed(2)}
                       </td>
                       <td style={{
                         padding: '8px 12px',
@@ -800,7 +838,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         color: isOpponentAnalysis ? getPressScoreColor(team.ourAvgSeqScore) : getScoreColor(team.ourAvgSeqScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_avg_sequence_time' : 'opp_avg_sequence_time') || 0).toFixed(1)}s ({team.ourAvgSeqScore.toFixed(0)})
+                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_avg_sequence_time' : 'opp_avg_sequence_time') || 0).toFixed(1)}s
                       </td>
                       <td style={{
                         padding: '8px 12px',
@@ -808,7 +846,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         color: isOpponentAnalysis ? getPressScoreColor(team.ourLongBallScore) : getScoreColor(team.ourLongBallScore),
                         fontWeight: '600'
                       }}>
-                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_long_ball_percentage' : 'opp_long_ball_percentage') || 0).toFixed(1)}% ({team.ourLongBallScore.toFixed(0)})
+                        {parseFloat(getField(team, isOpponentAnalysis ? 'our_long_ball_percentage' : 'opp_long_ball_percentage') || 0).toFixed(1)}%
                       </td>
                       <td style={{
                         padding: '8px 12px',
@@ -816,7 +854,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         color: isOpponentAnalysis ? getPressScoreColor(team.posWonScore) : getScoreColor(team.posWonScore),
                         fontWeight: '600'
                       }}>
-                        {getField(team, 'poswonopponenthalf') || 0} ({team.posWonScore.toFixed(0)})
+                        {getField(team, 'poswonopponenthalf') || 0}
                       </td>
                       <td style={{
                         padding: '8px 12px',
@@ -832,7 +870,7 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                           const s1e2 = parseFloat(getField(team, s1e2Field)) || 0
                           const s1 = parseFloat(getField(team, s1Field)) || 0
                           const percentage = s1 > 0 ? ((s1e3 + s1e2) / s1) * 100 : 0
-                          return `${percentage.toFixed(1)}% (${team.ourA1ToA2A3Score.toFixed(0)})`
+                          return `${percentage.toFixed(1)}%`
                         })()}
                       </td>
                     </tr>
@@ -844,8 +882,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         </div>
 
         {/* Duels Section */}
-        <div style={{ 
-          background: '#111',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
           padding: '20px',
           marginBottom: '16px',
@@ -854,9 +892,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
-            ⚔️ Duels
+          <h3 style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+            Duels
           </h3>
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '12px'
+          }} />
           
           <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
@@ -884,8 +928,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
-                      {getTeamName(team)}
+                    <td style={{ padding: '6px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
+                          {getTeamName(team)}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(getTeamName(team))}
+                          alt={getTeamName(team)}
+                          style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -921,21 +978,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         </span>
                       </div>
                     </td>
-                    <td style={{ 
-                      padding: '6px 8px', 
+                    <td style={{
+                      padding: '6px 8px',
                       textAlign: 'center',
                       color: getScoreColor(team.groundScore),
                       fontWeight: '600'
                     }}>
-                      {formatPercentage(getField(team, 'ground%'))} ({team.groundScore.toFixed(0)})
+                      {formatPercentage(getField(team, 'ground%'))}
                     </td>
-                    <td style={{ 
-                      padding: '6px 8px', 
+                    <td style={{
+                      padding: '6px 8px',
                       textAlign: 'center',
                       color: getScoreColor(team.aerialScore),
                       fontWeight: '600'
                     }}>
-                      {formatPercentage(getField(team, 'Aerial%'))} ({team.aerialScore.toFixed(0)})
+                      {formatPercentage(getField(team, 'Aerial%'))}
                     </td>
                   </tr>
                 )
@@ -945,8 +1002,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         </div>
 
         {/* Assist Zone Section */}
-        <div style={{ 
-          background: '#111',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
           padding: '20px',
           marginBottom: '16px',
@@ -955,9 +1012,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
-            🎯 Assist Zone
+          <h3 style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+            Assist Zone
           </h3>
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '12px'
+          }} />
           
           <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
@@ -986,8 +1049,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
-                      {getTeamName(team)}
+                    <td style={{ padding: '6px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
+                          {getTeamName(team)}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(getTeamName(team))}
+                          alt={getTeamName(team)}
+                          style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -1023,29 +1099,29 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                         </span>
                       </div>
                     </td>
-                    <td style={{ 
-                      padding: '6px 8px', 
+                    <td style={{
+                      padding: '6px 8px',
                       textAlign: 'center',
                       color: getScoreColor(team.passAssistScore),
                       fontWeight: '600'
                     }}>
-                      {getField(team, 'passfromassisttogolden') || 0} ({team.passAssistScore.toFixed(0)})
+                      {getField(team, 'passfromassisttogolden') || 0}
                     </td>
-                    <td style={{ 
-                      padding: '6px 8px', 
+                    <td style={{
+                      padding: '6px 8px',
                       textAlign: 'center',
                       color: getScoreColor(team.shotFromGoldenScore),
                       fontWeight: '600'
                     }}>
-                      {getField(team, 'shotfromgolden') || 0} ({team.shotFromGoldenScore.toFixed(0)})
+                      {getField(team, 'shotfromgolden') || 0}
                     </td>
-                    <td style={{ 
-                      padding: '6px 8px', 
+                    <td style={{
+                      padding: '6px 8px',
                       textAlign: 'center',
                       color: getScoreColor(team.crossPassRatioScore),
                       fontWeight: '600'
                     }}>
-                      {team.crossPassRatio.toFixed(2)} ({team.crossPassRatioScore.toFixed(0)})
+                      {team.crossPassRatio.toFixed(2)}
                     </td>
                   </tr>
                 )
@@ -1055,8 +1131,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         </div>
 
         {/* Shot Locations Section */}
-        <div style={{ 
-          background: '#111',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
           padding: '20px',
           marginBottom: '16px',
@@ -1065,9 +1141,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
-            📍 Shot Locations
+          <h3 style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+            Shot Locations
           </h3>
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '12px'
+          }} />
           
           <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
@@ -1096,8 +1178,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
-                      {getTeamName(team)}
+                    <td style={{ padding: '6px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
+                          {getTeamName(team)}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(getTeamName(team))}
+                          alt={getTeamName(team)}
+                          style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -1165,8 +1260,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         </div>
 
         {/* Shot Quality Section */}
-        <div style={{ 
-          background: '#111',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
           padding: '20px',
           marginBottom: '16px',
@@ -1175,9 +1270,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '9px', color: '#888', marginBottom: '6px', textAlign: 'center' }}>
-            🎯 Shot Quality
+          <h3 style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+            Shot Quality
           </h3>
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '12px'
+          }} />
           
           <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', tableLayout: 'auto', margin: '0 auto' }}>
             <thead>
@@ -1207,8 +1308,21 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                     }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '6px 8px', color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
-                      {getTeamName(team)}
+                    <td style={{ padding: '6px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: teamShouldHighlight ? '#FFD700' : '#fff', fontWeight: teamShouldHighlight ? '600' : '400' }}>
+                          {getTeamName(team)}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(getTeamName(team))}
+                          alt={getTeamName(team)}
+                          style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     </td>
                     <td style={{ 
                       padding: '6px 8px', 
@@ -1284,8 +1398,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
         </div>
 
         {/* Progressions Section */}
-        <div style={{ 
-          background: '#111',
+        <div style={{
+          background: '#000000',
           borderRadius: '8px',
           padding: '10px',
           border: '1px solid #333',
@@ -1293,9 +1407,15 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
           boxSizing: 'border-box',
           overflow: 'auto'
         }}>
-          <h3 style={{ fontSize: '12px', color: '#FFD700', marginBottom: '6px', textAlign: 'center' }}>
-            ➡️ Field Progression Analysis
+          <h3 style={{ fontSize: '16px', color: '#FFD700', marginBottom: '8px', textAlign: 'center', fontWeight: '700' }}>
+            Field Progression Analysis
           </h3>
+          <div style={{
+            width: '100%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+            marginBottom: '12px'
+          }} />
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             {/* A1 → A2 THIRD */}
@@ -1328,14 +1448,30 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                           }}>
                             {index + 1}.
                           </td>
-                          <td style={{ 
-                            padding: '4px', 
-                            color: teamShouldHighlight ? '#FFD700' : '#fff',
-                            fontWeight: teamShouldHighlight ? '600' : '400',
-                            fontSize: '9px',
-                            width: '80px'
+                          <td style={{
+                            padding: '4px',
+                            minWidth: '120px',
+                            whiteSpace: 'nowrap'
                           }}>
-                            {getTeamName(team)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                              <span style={{
+                                color: teamShouldHighlight ? '#FFD700' : '#fff',
+                                fontWeight: teamShouldHighlight ? '600' : '400',
+                                fontSize: '9px',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {getTeamName(team)}
+                              </span>
+                              <img
+                                src={getTeamLogoUrl(getTeamName(team))}
+                                alt={getTeamName(team)}
+                                style={{ width: '16px', height: '16px', objectFit: 'contain', flexShrink: 0 }}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 
@@ -1385,14 +1521,30 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                           }}>
                             {index + 1}.
                           </td>
-                          <td style={{ 
-                            padding: '4px', 
-                            color: teamShouldHighlight ? '#FFD700' : '#fff',
-                            fontWeight: teamShouldHighlight ? '600' : '400',
-                            fontSize: '9px',
-                            width: '80px'
+                          <td style={{
+                            padding: '4px',
+                            minWidth: '120px',
+                            whiteSpace: 'nowrap'
                           }}>
-                            {getTeamName(team)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                              <span style={{
+                                color: teamShouldHighlight ? '#FFD700' : '#fff',
+                                fontWeight: teamShouldHighlight ? '600' : '400',
+                                fontSize: '9px',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {getTeamName(team)}
+                              </span>
+                              <img
+                                src={getTeamLogoUrl(getTeamName(team))}
+                                alt={getTeamName(team)}
+                                style={{ width: '16px', height: '16px', objectFit: 'contain', flexShrink: 0 }}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 
@@ -1444,14 +1596,30 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
                           }}>
                             {index + 1}.
                           </td>
-                          <td style={{ 
-                            padding: '4px', 
-                            color: teamShouldHighlight ? '#FFD700' : '#fff',
-                            fontWeight: teamShouldHighlight ? '600' : '400',
-                            fontSize: '9px',
-                            width: '80px'
+                          <td style={{
+                            padding: '4px',
+                            minWidth: '120px',
+                            whiteSpace: 'nowrap'
                           }}>
-                            {getTeamName(team)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                              <span style={{
+                                color: teamShouldHighlight ? '#FFD700' : '#fff',
+                                fontWeight: teamShouldHighlight ? '600' : '400',
+                                fontSize: '9px',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {getTeamName(team)}
+                              </span>
+                              <img
+                                src={getTeamLogoUrl(getTeamName(team))}
+                                alt={getTeamName(team)}
+                                style={{ width: '16px', height: '16px', objectFit: 'contain', flexShrink: 0 }}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
                           </td>
                           <td style={{ 
                             padding: '4px 8px', 

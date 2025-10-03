@@ -4800,12 +4800,16 @@ input[type="file"] {
 .coach-tab-nav {
   display: flex;
   justify-content: center;
-  gap: 20px;
+  gap: 12px;
   margin-bottom: 30px;
   padding: 20px;
   background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
   border-radius: 12px;
   border: 2px solid #333;
+  flex-wrap: wrap;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .coach-tab-content {
