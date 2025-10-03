@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { isExcludedPlayer } from '../../lib/constants'
-import { Loader2, Save, X, Download, Palette, Maximize2 } from 'lucide-react'
+import { Loader2, Save, X, Download, Palette, Maximize2, FileSpreadsheet } from 'lucide-react'
 import generatePDF from 'react-to-pdf'
 import html2canvas from 'html2canvas'
+import * as XLSX from 'xlsx'
 
 interface WeeklyData {
   player_name: string
@@ -744,6 +745,47 @@ export default function DistanceView() {
     )
   }
 
+  const handleDownloadExcel = () => {
+    if (weeklyData.length === 0) {
+      alert('No data available to export')
+      return
+    }
+
+    // Prepare data for Excel
+    const excelData = weeklyData.map(row => ({
+      'Player Name': row.player_name,
+      'Week': row.week,
+      'Total Distance (km)': row.total_distance,
+      'Target (km)': row.target_km,
+      'Date': row.date,
+      'Notes': row.notes || ''
+    }))
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Distance Data')
+
+    // Auto-size columns
+    const maxWidth = 50
+    const wscols = [
+      { wch: 20 },  // Player Name
+      { wch: 15 },  // Week
+      { wch: 18 },  // Total Distance
+      { wch: 15 },  // Target
+      { wch: 12 },  // Date
+      { wch: maxWidth }  // Notes
+    ]
+    ws['!cols'] = wscols
+
+    // Generate filename with current date
+    const date = new Date().toISOString().split('T')[0]
+    const filename = `training-gps-distance-${date}.xlsx`
+
+    // Download
+    XLSX.writeFile(wb, filename)
+  }
+
   const handleDownloadLast5WeeksPNG = async () => {
     if (!targetRef.current) return
 
@@ -909,6 +951,10 @@ export default function DistanceView() {
         <button onClick={handleDownloadLast5WeeksPNG} className="download-btn">
           <Download size={16} />
           Last 5 Weeks PNG
+        </button>
+        <button onClick={handleDownloadExcel} className="download-btn">
+          <FileSpreadsheet size={16} />
+          Export Excel
         </button>
       </div>
       <div ref={targetRef} style={isWhiteTheme ? {

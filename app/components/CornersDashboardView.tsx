@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { fetchAvailableMatchdays, fetchCornersStatistics } from '@/lib/cornersDataService'
-import type { CornersStatistics, CornersMetadata } from '@/lib/cornersDataService'
+import type { CornersMetadata } from '@/lib/cornersDataService'
 import html2canvas from 'html2canvas'
 import { Download } from 'lucide-react'
+import { getTeamLogoUrl } from '@/lib/teamLogos'
 
 interface CornersData {
   rank: number
@@ -97,11 +98,6 @@ export default function CornersDashboardView() {
     }
 
     setLoading(false)
-  }
-
-  const handleMatchdaySelect = (matchdayNumber: string) => {
-    setSelectedMatchday(matchdayNumber)
-    loadMatchdayData(matchdayNumber)
   }
 
   // Copy the exact calculation functions from CornersView
@@ -219,11 +215,20 @@ export default function CornersDashboardView() {
           xgFromCornerDiff
         }
       }
-      return attackTeam
+      // Fallback if no defense team found
+      return {
+        ...attackTeam,
+        finalDefenseScore: 0,
+        combinedScore: attackTeam.finalScore * 0.5,
+        cornersDiff: attackTeam.corners,
+        shotFromCornerDiff: attackTeam.shotfromcorner,
+        goalFromCornerDiff: attackTeam.goalfromcorner,
+        xgFromCornerDiff: attackTeam.xgcorn
+      }
     })
 
     // Sort by combined score and assign final ranks
-    return combinedStats.sort((a, b) => b.combinedScore - a.combinedScore).map((team, index) => ({
+    return combinedStats.sort((a: any, b: any) => b.combinedScore - a.combinedScore).map((team, index) => ({
       ...team,
       summaryRank: index + 1
     }))
@@ -275,94 +280,46 @@ export default function CornersDashboardView() {
 
   return (
     <div style={{ fontFamily: 'Montserrat' }}>
-      {/* Header with matchday selector */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '8px',
-        padding: '20px',
-        marginBottom: '20px',
-        border: '1px solid rgba(255, 215, 0, 0.2)'
-      }}>
-        <h3 style={{
-          color: '#FFD700',
-          margin: '0 0 15px 0',
-          fontFamily: 'Montserrat',
-          fontSize: '16px',
-          fontWeight: '600'
+      {/* Export button only */}
+      {cornersData.length > 0 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '20px'
         }}>
-          📊 Corners Analysis Dashboard
-        </h3>
-
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{
-            color: 'var(--primary-text)',
-            fontFamily: 'Montserrat',
-            fontWeight: '500',
-            fontSize: '14px'
-          }}>
-            Matchday:
-          </label>
-          <select
-            value={selectedMatchday}
-            onChange={(e) => handleMatchdaySelect(e.target.value)}
-            disabled={loading}
+          <button
+            onClick={exportToPNG}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 215, 0, 0.3)',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
               borderRadius: '6px',
-              padding: '8px 12px',
-              color: 'var(--primary-text)',
+              padding: '10px 16px',
+              color: '#10b981',
               fontFamily: 'Montserrat',
               fontSize: '14px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              minWidth: '200px'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
-            {availableMatchdays.map(matchday => (
-              <option
-                key={matchday.matchday_number}
-                value={matchday.matchday_number}
-                style={{ background: '#1a1a1a', color: 'var(--primary-text)' }}
-              >
-                Matchday {matchday.matchday_number} - {matchday.total_teams} teams
-              </option>
-            ))}
-          </select>
-
-          {cornersData.length > 0 && (
-            <button
-              onClick={exportToPNG}
-              style={{
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                color: '#10b981',
-                fontFamily: 'Montserrat',
-                fontSize: '12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Download size={14} />
-              Export PNG
-            </button>
-          )}
-
-          {loading && (
-            <span style={{
-              color: '#FFD700',
-              fontFamily: 'Montserrat',
-              fontSize: '12px',
-              fontStyle: 'italic'
-            }}>
-              Loading...
-            </span>
-          )}
+            <Download size={16} />
+            Export PNG
+          </button>
         </div>
-      </div>
+      )}
+
+      {loading && (
+        <div style={{
+          textAlign: 'center',
+          padding: '40px',
+          color: '#FFD700',
+          fontFamily: 'Montserrat',
+          fontSize: '14px'
+        }}>
+          Loading corners analysis...
+        </div>
+      )}
 
       {/* Error message */}
       {error && (
@@ -389,7 +346,7 @@ export default function CornersDashboardView() {
         }}>
           {/* Single Header for All Tables */}
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
               <img
                 src="/beitar-logo.png"
                 alt="Beitar Logo"
@@ -403,9 +360,12 @@ export default function CornersDashboardView() {
                 FCBJ DATA
               </span>
             </div>
-            <div style={{ fontSize: '14px', color: '#FFD700', fontWeight: '600' }}>
-              Corner Analysis - Matchday {selectedMatchday}
-            </div>
+            <div style={{
+              width: '100%',
+              height: '2px',
+              background: 'linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%)',
+              marginBottom: '16px'
+            }} />
           </div>
 
           {/* Corner Attack Table */}
@@ -461,7 +421,15 @@ export default function CornersDashboardView() {
                           fontWeight: isBeitar ? '600' : '400',
                           fontSize: '12px'
                         }}>
-                          <div>{team.teamFullName || team.team}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{team.teamFullName || team.team}</span>
+                            <img
+                              src={getTeamLogoUrl(team.teamFullName || team.team)}
+                              alt={team.teamFullName || team.team}
+                              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          </div>
                         </td>
                         <td style={{
                           padding: '6px 8px',
@@ -606,7 +574,15 @@ export default function CornersDashboardView() {
                           fontWeight: isBeitar ? '600' : '400',
                           fontSize: '12px'
                         }}>
-                          <div>{team.teamFullName || team.team}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{team.teamFullName || team.team}</span>
+                            <img
+                              src={getTeamLogoUrl(team.teamFullName || team.team)}
+                              alt={team.teamFullName || team.team}
+                              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          </div>
                         </td>
                         <td style={{
                           padding: '6px 8px',
@@ -726,7 +702,7 @@ export default function CornersDashboardView() {
               <tbody>
                 {(() => {
                   const teamsWithStats = calculateCornerSummaryStats(cornersData)
-                  return teamsWithStats.map((team, index) => {
+                  return teamsWithStats.map((team: any, index) => {
                     const isBeitar = team.teamFullName?.toLowerCase().includes('beitar') ||
                                    team.teamAbbrevName?.toLowerCase().includes('beitar')
 
@@ -749,7 +725,15 @@ export default function CornersDashboardView() {
                           fontWeight: isBeitar ? '600' : '400',
                           fontSize: '12px'
                         }}>
-                          <div>{team.teamFullName || team.team}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{team.teamFullName || team.team}</span>
+                            <img
+                              src={getTeamLogoUrl(team.teamFullName || team.team)}
+                              alt={team.teamFullName || team.team}
+                              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          </div>
                         </td>
                         <td style={{
                           padding: '6px 8px',
