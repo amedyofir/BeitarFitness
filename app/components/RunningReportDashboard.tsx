@@ -55,10 +55,10 @@ export default function RunningReportDashboard() {
       
       if (result.success && result.data) {
         // Convert CSV data to running report format
-        const convertedData = CSVReportService.convertToRunningReportFormat(
+        const convertedData = await CSVReportService.convertToRunningReportFormat(
           result.data.parsed_data
         )
-        
+
         setRunningData(convertedData)
         setSelectedReport(report)
       } else {

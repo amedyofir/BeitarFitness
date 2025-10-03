@@ -9,6 +9,7 @@ import RunningReportDashboard from './RunningReportDashboard'
 import ByMatchComparison from './ByMatchComparison'
 import TopPlayersReport from './TopPlayersReport'
 import RunningSeasonReport from './RunningSeasonReport'
+import { supabase } from '../../lib/supabase'
 
 export default function League() {
   const [activeTab, setActiveTab] = useState<'matchday-reports' | 'running-dashboard' | 'running-season' | 'by-match' | 'top-players'>('matchday-reports')
@@ -18,25 +19,62 @@ export default function League() {
   const [availableTeams, setAvailableTeams] = useState<string[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const handleRunningCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Fetch player profile pictures from opta_player_object
+  const fetchPlayerProfilePictures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('opta_player_object')
+        .select('playerId, FullName, profile_pic_supabase_url')
+
+      if (error) {
+        console.error('Error fetching player profile pictures:', error)
+        return {}
+      }
+
+      // Create a map of both playerId and player names to profile picture URLs
+      const profilePicMap: { [key: string]: string } = {}
+      data?.forEach(player => {
+        if (player.profile_pic_supabase_url) {
+          // Map by playerId (preferred)
+          if (player.playerId) {
+            profilePicMap[player.playerId] = player.profile_pic_supabase_url
+          }
+          // Also map by FullName as fallback
+          if (player.FullName) {
+            profilePicMap[player.FullName] = player.profile_pic_supabase_url
+          }
+        }
+      })
+
+      return profilePicMap
+    } catch (error) {
+      console.error('Error fetching player profile pictures:', error)
+      return {}
+    }
+  }
+
+  const handleRunningCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'text/csv') {
       setIsProcessing(true)
-      
+
+      // Fetch player profile pictures first
+      const profilePicMap = await fetchPlayerProfilePictures()
+
       const reader = new FileReader()
       reader.onload = (e) => {
         const text = e.target?.result as string
-        
+
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
             console.log('Running CSV parsing completed:', results.data)
-            
+
             // Convert numeric fields for running data
             const processedData = results.data.map((row: any) => {
               const processedRow: any = { ...row }
-              
+
               const numericFields = [
                 'Min', 'OutPossHighDecels', 'OutPossHighAccels', 'OutPossDistSprint',
                 'OutPossDistHSRun', 'DistanceRunOutPoss', 'InPossHighDecels', 'InPossHighAccels',
@@ -56,16 +94,25 @@ export default function League() {
                   }
                 }
               })
-              
+
+              // Add profile picture URL if available - try playerId first, then fall back to player name
+              const playerId = processedRow.playerId || processedRow.PlayerId || processedRow.player_id
+              const playerName = processedRow.Player
+
+              processedRow.profile_pic_supabase_url =
+                (playerId && profilePicMap[playerId]) ||
+                (playerName && profilePicMap[playerName]) ||
+                undefined
+
               return processedRow
             })
-            
+
             setRunningData(processedData)
-            
+
             // Set predefined opponent teams
             const predefinedOpponents = [
               'Hapoel Be\'er Sheva',
-              'Maccabi Haifa', 
+              'Maccabi Haifa',
               'Hapoel Jerusalem',
               'Ironi Tiberias',
               'Hapoel Tel Aviv',
@@ -77,7 +124,7 @@ export default function League() {
               'Maccabi Bnei Raina'
             ]
             setAvailableTeams(predefinedOpponents)
-            
+
             setIsProcessing(false)
           },
           error: (error: any) => {

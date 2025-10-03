@@ -70,7 +70,7 @@ export default function SimpleCSVReportsManager({ onLoadReport, onClose }: Simpl
       const result = await CSVReportService.loadCSVReport(report.matchday_number, report.opponent_team)
       if (result.success && result.data) {
         // Convert to running report format if callback expects it
-        const runningData = CSVReportService.convertToRunningReportFormat(result.data.parsed_data)
+        const runningData = await CSVReportService.convertToRunningReportFormat(result.data.parsed_data)
         onLoadReport?.(runningData)
         onClose?.()
       } else {

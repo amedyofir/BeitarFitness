@@ -50,7 +50,7 @@ export default function ByMatchComparison() {
         )
 
         if (reportResult.success && reportResult.data) {
-          const parsedData = CSVReportService.convertToRunningReportFormat(
+          const parsedData = await CSVReportService.convertToRunningReportFormat(
             reportResult.data.parsed_data
           )
 

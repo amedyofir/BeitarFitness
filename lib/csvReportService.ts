@@ -229,12 +229,18 @@ export class CSVReportService {
   /**
    * Convert parsed CSV data back to original format expected by running report
    */
-  static convertToRunningReportFormat(parsedData: any[]): any[] {
+  static async convertToRunningReportFormat(parsedData: any[]): Promise<any[]> {
+    // Fetch player profile pictures
+    const profilePicMap = await this.fetchPlayerProfilePictures()
+
     return parsedData.map(row => {
+      const playerName = row['Player'] || row['player'] || row['Name']
+      const playerId = row['playerId'] || row['PlayerId'] || row['player_id']
+
       // Map common CSV columns to the expected format
       // Adjust these mappings based on your actual CSV structure
       return {
-        Player: row['Player'] || row['player'] || row['Name'],
+        Player: playerName,
         playerFullName: row['playerFullName'] || row['Full Name'] || row['Player'],
         Position: row['Position'] || row['position'] || row['Pos'],
         teamName: row['teamName'] || row['Team Name'] || row['Team'],
@@ -257,11 +263,52 @@ export class CSVReportService {
         DistanceRunOutPoss: row['DistanceRunOutPoss'] || row['Distance Run Out Poss'],
         GS: row['GS'] || row['Game Score'],
         pos: row['pos'] || row['Position Code'],
-        
+
+        // Add profile picture URL - try playerId first, then fall back to player name
+        profile_pic_supabase_url: (playerId && profilePicMap[playerId]) ||
+                                   (playerName && profilePicMap[playerName]) ||
+                                   undefined,
+
         // Include any additional fields from the CSV
         ...row
       }
     })
+  }
+
+  /**
+   * Fetch player profile pictures from opta_player_object
+   */
+  private static async fetchPlayerProfilePictures(): Promise<{ [key: string]: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('opta_player_object')
+        .select('playerId, FullName, profile_pic_supabase_url')
+
+      if (error) {
+        console.error('Error fetching player profile pictures:', error)
+        return {}
+      }
+
+      // Create a map of both playerId and player names to profile picture URLs
+      const profilePicMap: { [key: string]: string } = {}
+      data?.forEach(player => {
+        if (player.profile_pic_supabase_url) {
+          // Map by playerId (preferred)
+          if (player.playerId) {
+            profilePicMap[player.playerId] = player.profile_pic_supabase_url
+          }
+          // Also map by FullName as fallback
+          if (player.FullName) {
+            profilePicMap[player.FullName] = player.profile_pic_supabase_url
+          }
+        }
+      })
+
+      return profilePicMap
+    } catch (error) {
+      console.error('Error fetching player profile pictures:', error)
+      return {}
+    }
   }
 
   /**
@@ -317,15 +364,15 @@ export class CSVReportService {
       for (const report of seasonReports) {
         const reportResult = await this.loadCSVReport(report.matchday_number, report.opponent_team)
         if (reportResult.success && reportResult.data) {
-          const convertedData = this.convertToRunningReportFormat(reportResult.data.parsed_data)
-          
+          const convertedData = await this.convertToRunningReportFormat(reportResult.data.parsed_data)
+
           // Add match metadata to each player record
           convertedData.forEach(player => {
             player.matchday_number = report.matchday_number
             player.opponent_team = report.opponent_team
             player.match_date = report.match_date
           })
-          
+
           allMatchData.push(...convertedData)
         }
       }

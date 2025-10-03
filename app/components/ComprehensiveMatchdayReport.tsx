@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react'
 import { Download, Save, Loader2, Calendar } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import { CSVReportService } from '../../lib/csvReportService'
+import { getTeamLogoUrl } from '../../lib/teamLogos'
 
 interface PlayerRunningData {
   Player: string
@@ -122,7 +123,7 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
       console.log('PNG Export - Dimensions:', { fullWidth, fullHeight, scrollWidth: exportRef.current.scrollWidth, scrollHeight: exportRef.current.scrollHeight })
 
       const canvas = await html2canvas(exportRef.current, {
-        backgroundColor: '#242b3d',
+        backgroundColor: '#000000',
         useCORS: true,
         allowTaint: true,
         scale: 2,
@@ -424,43 +425,58 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
 
 
 
-  const renderProgressBar = (value: number, maxValue: number, color: 'green' | 'red') => {
+  const renderProgressBar = (value: number, maxValue: number, color: 'blue' | 'purple') => {
     const percentage = maxValue > 0 ? (value / maxValue * 100) : 0
-    const gradient = color === 'green' 
-      ? 'linear-gradient(90deg, #22c55e, #16a34a)'
-      : 'linear-gradient(90deg, #ef4444, #dc2626)'
-    
+    const gradient = color === 'blue'
+      ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
+      : 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)'
+
     // Format value with full distance format
     const formattedValue = formatDistance(value)
-    
+
     return (
-      <div style={{ 
-        flex: 1, 
-        height: '14px', 
-        background: 'rgba(255, 255, 255, 0.1)', 
-        borderRadius: '7px',
+      <div style={{
+        flex: 1,
+        height: '20px',
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+        borderRadius: '10px',
         position: 'relative',
         overflow: 'hidden',
-        minWidth: '60px'
+        minWidth: '60px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
       }}>
         <div style={{
           width: `${percentage}%`,
           height: '100%',
           background: gradient,
-          borderRadius: '7px',
-          transition: 'width 0.3s ease'
-        }} />
+          borderRadius: '10px',
+          transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '50%',
+            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+            borderRadius: '10px 10px 0 0'
+          }} />
+        </div>
         <span style={{
           position: 'absolute',
-          right: '2px',
+          right: '6px',
           top: '50%',
           transform: 'translateY(-50%)',
-          fontSize: '14px',
+          fontSize: '12px',
           color: '#fff',
           fontWeight: '700',
-          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+          textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)',
           whiteSpace: 'nowrap',
-          paddingLeft: '2px'
+          letterSpacing: '0.3px'
         }}>
           {formattedValue}
         </span>
@@ -506,22 +522,34 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
           {index + 1}
         </td>
-        <td style={{ padding: '10px 8px', textAlign: 'left', color: '#fff', fontSize: '16px', fontWeight: '500', width: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {player.Player}
-          {player.Min && (
-            <span style={{
-              marginLeft: '6px',
-              color: '#FFD700',
-              fontWeight: '700',
-              fontSize: '14px',
-              background: 'rgba(255, 215, 0, 0.15)',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              border: '1px solid rgba(255, 215, 0, 0.3)'
-            }}>
-              {player.Min}'
+        <td style={{ padding: '10px 8px', textAlign: 'left', fontSize: '16px', fontWeight: '500', width: '120px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {player.Player}
             </span>
-          )}
+            {player.profile_pic_supabase_url && (
+              <img
+                src={player.profile_pic_supabase_url}
+                alt={player.Player}
+                style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '50%', flexShrink: 0 }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+            {player.Min && (
+              <span style={{
+                color: '#FFD700',
+                fontWeight: '700',
+                fontSize: '14px',
+                background: 'rgba(255, 215, 0, 0.15)',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                flexShrink: 0
+              }}>
+                {player.Min}'
+              </span>
+            )}
+          </div>
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center', color: '#FFD700', fontSize: '16px', fontWeight: '600' }}>
           {formatDistance(totalDistance)}
@@ -538,70 +566,104 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         <td style={{ padding: '10px 8px', width: '160px' }}>
           <div style={{ marginBottom: '6px' }}>
             <div style={{ marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
-              {renderProgressBar(inPoss, maxPlayerInPoss, 'green')}
+              <span style={{ fontSize: '10px', color: '#60a5fa', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
+              {renderProgressBar(inPoss, maxPlayerInPoss, 'blue')}
             </div>
             <div>
-              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
-              {renderProgressBar(outPoss, maxPlayerOutPoss, 'red')}
+              <span style={{ fontSize: '10px', color: '#c084fc', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
+              {renderProgressBar(outPoss, maxPlayerOutPoss, 'purple')}
             </div>
           </div>
         </td>
         <td style={{ padding: '10px 8px', width: '160px' }}>
           <div style={{ marginBottom: '6px' }}>
             <div style={{ marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
+              <span style={{ fontSize: '10px', color: '#60a5fa', fontWeight: '600', display: 'block', marginBottom: '2px' }}>In Poss</span>
               <div style={{
                 width: '100%',
-                height: '14px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '7px',
+                height: '20px',
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                borderRadius: '10px',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
               }}>
                 <div style={{
                   width: `${Math.min(inPossIntensity * 8, 100)}%`,
                   height: '100%',
-                  background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                  borderRadius: '7px'
-                }} />
+                  background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                  borderRadius: '10px',
+                  transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '50%',
+                    background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                    borderRadius: '10px 10px 0 0'
+                  }} />
+                </div>
                 <span style={{
                   position: 'absolute',
-                  right: '2px',
+                  right: '6px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   fontSize: '12px',
                   color: '#fff',
-                  fontWeight: '700'
+                  fontWeight: '700',
+                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                 }}>
                   {inPossIntensity.toFixed(1)}%
                 </span>
               </div>
             </div>
             <div>
-              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
+              <span style={{ fontSize: '10px', color: '#c084fc', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Out Poss</span>
               <div style={{
                 width: '100%',
-                height: '14px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '7px',
+                height: '20px',
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                borderRadius: '10px',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
               }}>
                 <div style={{
                   width: `${Math.min(outPossIntensity * 8, 100)}%`,
                   height: '100%',
-                  background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                  borderRadius: '7px'
-                }} />
+                  background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                  borderRadius: '10px',
+                  transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '50%',
+                    background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                    borderRadius: '10px 10px 0 0'
+                  }} />
+                </div>
                 <span style={{
                   position: 'absolute',
-                  right: '2px',
+                  right: '6px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   fontSize: '12px',
                   color: '#fff',
-                  fontWeight: '700'
+                  fontWeight: '700',
+                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                 }}>
                   {outPossIntensity.toFixed(1)}%
                 </span>
@@ -812,8 +874,8 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         </div>
       )}
 
-      <div ref={exportRef} id="comprehensive-matchday-report" style={{ 
-        background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%)',
+      <div ref={exportRef} id="comprehensive-matchday-report" style={{
+        background: '#000000',
         borderRadius: '12px',
         padding: '16px',
         color: '#fff',
@@ -825,10 +887,35 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
         margin: '0 auto'
       }}>
         
+        {/* Logo and Title */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>
+          <img
+            src="/beitar-logo.png"
+            alt="Beitar Jerusalem"
+            style={{ width: '50px', height: '50px' }}
+          />
+          <h2 style={{
+            color: '#FFD700',
+            fontSize: '20px',
+            margin: 0,
+            fontWeight: '700',
+            letterSpacing: '1px'
+          }}>
+            FCBJ DATA
+          </h2>
+        </div>
+
+        {/* Separator Line */}
+        <div style={{
+          height: '2px',
+          background: 'linear-gradient(90deg, transparent, #FFD700, transparent)',
+          marginBottom: '20px'
+        }} />
+
         {/* Main Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <h1 style={{ 
-            color: '#FFD700', 
+          <h1 style={{
+            color: '#FFD700',
             fontSize: '26px',
             fontWeight: '700',
             margin: 0,
@@ -857,7 +944,6 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>RANK</th>
                 <th style={{ padding: '8px 4px', textAlign: 'left', color: '#FFD700', fontSize: '14px', fontWeight: '700', width: '140px' }}>TEAM</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
-                {!isSeasonReport && <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>MPM</th>}
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>INTENSITY %</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>SPEED</th>
                 <th style={{ padding: '8px 4px', textAlign: 'center', color: '#FFD700', fontSize: '14px', fontWeight: '700' }}>DISTANCE</th>
@@ -882,15 +968,22 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'left', color: '#fff', fontWeight: '500', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '16px' }}>
-                      {team.team}
+                    <td style={{ padding: '10px 4px', textAlign: 'left', width: '140px', fontSize: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#fff', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {team.team}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(team.team)}
+                          alt={team.team}
+                          style={{ width: '32px', height: '32px', objectFit: 'contain', flexShrink: 0 }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      </div>
                     </td>
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {formatDistance(team.totalDistance)}
                     </td>
-                    {!isSeasonReport && <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
-                      {Math.round(team.avgMPM)}
-                    </td>}
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#fff', fontSize: '16px' }}>
                       {team.avgIntensity.toFixed(1)}%
                     </td>
@@ -899,68 +992,102 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     </td>
                     <td style={{ padding: '10px 8px', minWidth: '160px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
-                        {renderProgressBar(team.totalInPoss, maxInPoss, 'green')}
+                        <span style={{ fontSize: '10px', color: '#60a5fa', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
+                        {renderProgressBar(team.totalInPoss, maxInPoss, 'blue')}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
-                        {renderProgressBar(team.totalOutPoss, maxOutPoss, 'red')}
+                        <span style={{ fontSize: '10px', color: '#c084fc', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
+                        {renderProgressBar(team.totalOutPoss, maxOutPoss, 'purple')}
                       </div>
                     </td>
                     <td style={{ padding: '10px 8px', minWidth: '160px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
-                        <div style={{ 
-                          flex: 1, 
-                          height: '14px', 
-                          background: 'rgba(255, 255, 255, 0.1)', 
-                          borderRadius: '7px',
+                        <span style={{ fontSize: '10px', color: '#60a5fa', width: '50px', textAlign: 'left', fontWeight: '600' }}>In Poss</span>
+                        <div style={{
+                          flex: 1,
+                          height: '20px',
+                          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                          borderRadius: '10px',
                           position: 'relative',
-                          overflow: 'hidden'
+                          overflow: 'hidden',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                         }}>
                           <div style={{
                             width: `${Math.min(team.avgInPossIntensity * 8, 100)}%`,
                             height: '100%',
-                            background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                            borderRadius: '7px'
-                          }} />
+                            background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                            borderRadius: '10px',
+                            transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: '50%',
+                              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                              borderRadius: '10px 10px 0 0'
+                            }} />
+                          </div>
                           <span style={{
                             position: 'absolute',
-                            right: '2px',
+                            right: '6px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            fontSize: '14px',
+                            fontSize: '12px',
                             color: '#fff',
-                            fontWeight: '700'
+                            fontWeight: '700',
+                            textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                           }}>
                             {team.avgInPossIntensity.toFixed(1)}%
                           </span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: '#888', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
-                        <div style={{ 
-                          flex: 1, 
-                          height: '14px', 
-                          background: 'rgba(255, 255, 255, 0.1)', 
-                          borderRadius: '7px',
+                        <span style={{ fontSize: '10px', color: '#c084fc', width: '50px', textAlign: 'left', fontWeight: '600' }}>Out Poss</span>
+                        <div style={{
+                          flex: 1,
+                          height: '20px',
+                          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                          borderRadius: '10px',
                           position: 'relative',
-                          overflow: 'hidden'
+                          overflow: 'hidden',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                         }}>
                           <div style={{
                             width: `${Math.min(team.avgOutPossIntensity * 8, 100)}%`,
                             height: '100%',
-                            background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                            borderRadius: '7px'
-                          }} />
+                            background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                            borderRadius: '10px',
+                            transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: '50%',
+                              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                              borderRadius: '10px 10px 0 0'
+                            }} />
+                          </div>
                           <span style={{
                             position: 'absolute',
-                            right: '2px',
+                            right: '6px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            fontSize: '14px',
+                            fontSize: '12px',
                             color: '#fff',
-                            fontWeight: '700'
+                            fontWeight: '700',
+                            textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                           }}>
                             {team.avgOutPossIntensity.toFixed(1)}%
                           </span>
@@ -1082,64 +1209,108 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '10px 4px', textAlign: 'center', color: '#FFD700', fontWeight: '600', fontSize: '16px' }}>
                       {index + 1}
                     </td>
-                    <td style={{ padding: '10px 4px', textAlign: 'left', color: '#fff', fontWeight: '500', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '16px' }}>
-                      {team.team}
+                    <td style={{ padding: '10px 4px', textAlign: 'left', width: '140px', fontSize: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#fff', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {team.team}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(team.team)}
+                          alt={team.team}
+                          style={{ width: '32px', height: '32px', objectFit: 'contain', flexShrink: 0 }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      </div>
                     </td>
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#60a5fa', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${(firstHalfDistance / maxDistance) * 100}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {formatDistance(firstHalfDistance)}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#c084fc', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${(secondHalfDistance / maxDistance) * 100}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {formatDistance(secondHalfDistance)}
                             </span>
@@ -1150,58 +1321,92 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#60a5fa', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${Math.min(firstHalfIntensity * 8, 100)}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {firstHalfIntensity.toFixed(1)}%
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#c084fc', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${Math.min(secondHalfIntensity * 8, 100)}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {secondHalfIntensity.toFixed(1)}%
                             </span>
@@ -1212,58 +1417,92 @@ export default function ComprehensiveMatchdayReport({ runningData, matchdayNumbe
                     <td style={{ padding: '8px 6px', textAlign: 'center', minWidth: '150px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#22c55e', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#60a5fa', width: '30px', textAlign: 'left', fontWeight: '600' }}>1st</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${(firstHalfAlmog / 100) * 100}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {firstHalfAlmog.toFixed(1)}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '12px', color: '#ef4444', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '12px', 
-                            background: 'rgba(255, 255, 255, 0.1)', 
-                            borderRadius: '6px',
+                          <span style={{ fontSize: '10px', color: '#c084fc', width: '30px', textAlign: 'left', fontWeight: '600' }}>2nd</span>
+                          <div style={{
+                            flex: 1,
+                            height: '20px',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.08))',
+                            borderRadius: '10px',
                             position: 'relative',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
                           }}>
                             <div style={{
                               width: `${(secondHalfAlmog / 100) * 100}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                              borderRadius: '6px'
-                            }} />
+                              background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                              borderRadius: '10px',
+                              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '50%',
+                                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
+                                borderRadius: '10px 10px 0 0'
+                              }} />
+                            </div>
                             <span style={{
                               position: 'absolute',
-                              right: '2px',
+                              right: '6px',
                               top: '50%',
                               transform: 'translateY(-50%)',
-                              fontSize: '14px',
+                              fontSize: '12px',
                               color: '#fff',
-                              fontWeight: '700'
+                              fontWeight: '700',
+                              textShadow: '0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5)'
                             }}>
                               {secondHalfAlmog.toFixed(1)}
                             </span>
