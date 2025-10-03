@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { BarChart3, RefreshCw, Sun, Moon, Download } from 'lucide-react'
 import { CSVReportService } from '../../lib/csvReportService'
+import { getTeamLogoUrl } from '../../lib/teamLogos'
 import html2canvas from 'html2canvas'
 
 interface MatchData {
@@ -363,6 +364,12 @@ export default function ByMatchComparison() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {/* Beitar Bar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <img
+                            src={getTeamLogoUrl('Beitar Jerusalem')}
+                            alt="Beitar Jerusalem"
+                            style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
                           <span style={{
                             color: '#FFD700',
                             fontSize: '10px',
@@ -404,6 +411,12 @@ export default function ByMatchComparison() {
 
                         {/* Opponent Bar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <img
+                            src={getTeamLogoUrl(match.opponent)}
+                            alt={match.opponent}
+                            style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
                           <span style={{
                             color: '#ef4444',
                             fontSize: '10px',
@@ -519,6 +532,12 @@ export default function ByMatchComparison() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {/* Beitar Bar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <img
+                            src={getTeamLogoUrl('Beitar Jerusalem')}
+                            alt="Beitar Jerusalem"
+                            style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
                           <span style={{
                             color: '#FFD700',
                             fontSize: '10px',
@@ -560,6 +579,12 @@ export default function ByMatchComparison() {
 
                         {/* Opponent Bar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <img
+                            src={getTeamLogoUrl(match.opponent)}
+                            alt={match.opponent}
+                            style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
                           <span style={{
                             color: '#ef4444',
                             fontSize: '10px',

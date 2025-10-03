@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react'
 import { TrendingUp, Upload } from 'lucide-react'
 import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
+import { supabase } from '../../lib/supabase'
 
 interface RunningSeasonReportProps {
   runningData: any[]
@@ -29,10 +30,47 @@ export default function RunningSeasonReport({ runningData, onDataUpload }: Runni
     'Hapoel Petah Tikva',
   ]
 
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Fetch player profile pictures from opta_player_object
+  const fetchPlayerProfilePictures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('opta_player_object')
+        .select('playerId, FullName, profile_pic_supabase_url')
+
+      if (error) {
+        console.error('Error fetching player profile pictures:', error)
+        return {}
+      }
+
+      // Create a map of both playerId and player names to profile picture URLs
+      const profilePicMap: { [key: string]: string } = {}
+      data?.forEach(player => {
+        if (player.profile_pic_supabase_url) {
+          // Map by playerId (preferred)
+          if (player.playerId) {
+            profilePicMap[player.playerId] = player.profile_pic_supabase_url
+          }
+          // Also map by FullName as fallback
+          if (player.FullName) {
+            profilePicMap[player.FullName] = player.profile_pic_supabase_url
+          }
+        }
+      })
+
+      return profilePicMap
+    } catch (error) {
+      console.error('Error fetching player profile pictures:', error)
+      return {}
+    }
+  }
+
+  const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'text/csv') {
       setIsProcessing(true)
+
+      // Fetch player profile pictures first
+      const profilePicMap = await fetchPlayerProfilePictures()
 
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -64,6 +102,15 @@ export default function RunningSeasonReport({ runningData, onDataUpload }: Runni
                   }
                 }
               })
+
+              // Add profile picture URL if available - try playerId first, then fall back to player name
+              const playerId = processedRow.playerId || processedRow.PlayerId || processedRow.player_id
+              const playerName = processedRow.Player
+
+              processedRow.profile_pic_supabase_url =
+                (playerId && profilePicMap[playerId]) ||
+                (playerName && profilePicMap[playerName]) ||
+                undefined
 
               return processedRow
             })
