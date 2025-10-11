@@ -15,25 +15,26 @@ import MatchdayWizard from './components/MatchdayWizard'
 import OpponentView from './components/OpponentView'
 import DietitianDashboard from './components/DietitianDashboard'
 import CornersView from './components/CornersView'
-import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock, Target, Flag } from 'lucide-react'
+import OptaScore from './components/OptaScore'
+import { Upload, BarChart3, Grid3X3, MapPin, Zap, BarChart, Users, ClipboardList, TrendingUp, Trophy, FileText, Scale, Settings, Lock, Target, Flag, Award } from 'lucide-react'
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<'coach-dashboard' | 'developer'>('coach-dashboard')
   const [activeTab, setActiveTab] = useState<'upload' | 'analysis' | 'alldata' | 'distance' | 'intensity' | 'charts' | 'match-reports'>('charts')
-  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'opponent-view' | 'dietitian' | 'corners'>('coaches')
+  const [developerSection, setDeveloperSection] = useState<'coaches' | 'players' | 'league' | 'matchday-wizard' | 'opponent-view' | 'dietitian' | 'corners' | 'opta-score'>('coaches')
   const [showDeveloperAccess, setShowDeveloperAccess] = useState(false)
 
   return (
     <div className="main-container">
       <nav className="navbar">
         <div className="navbar-content">
-          <div className="navbar-left">
-            <img 
-              src="/beitar-logo.png" 
-              alt="Beitar Jerusalem Logo" 
+          <div className="navbar-center">
+            <img
+              src="/beitar-logo.png"
+              alt="Beitar Jerusalem Logo"
               className="navbar-logo"
             />
-            <h1 className="navbar-title">FCBJ - Data</h1>
+            <h1 className="navbar-title">FCBJ DATA</h1>
           </div>
           <div className="navbar-right">
             <button
@@ -59,11 +60,11 @@ export default function Home() {
       
       <header className="header">
         <div className="header-content">
-          <h1>
-            Beitar Jerusalem 
-            <span className="separator">|</span>
-            Data Platform
-          </h1>
+          <div className="header-badge">
+            <span className="header-team">Beitar Jerusalem</span>
+            <span className="header-divider">|</span>
+            <span className="header-platform">Data Platform</span>
+          </div>
         </div>
       </header>
 
@@ -145,6 +146,15 @@ export default function Home() {
                 >
                   <Flag />
                   Corners
+                </button>
+                <button
+                  onClick={() => {
+                    setDeveloperSection('opta-score')
+                  }}
+                  className={`section-button ${developerSection === 'opta-score' ? 'active' : ''}`}
+                >
+                  <Award />
+                  Opta Score
                 </button>
               </nav>
 
@@ -251,6 +261,13 @@ export default function Home() {
               {developerSection === 'corners' && (
                 <div className="tab-content">
                   <CornersView />
+                </div>
+              )}
+
+              {/* Opta Score Section */}
+              {developerSection === 'opta-score' && (
+                <div className="tab-content">
+                  <OptaScore />
                 </div>
               )}
             </>

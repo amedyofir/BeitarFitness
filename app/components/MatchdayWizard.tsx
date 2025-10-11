@@ -38,7 +38,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
   // Israeli Premier League teams list
   const israeliClubs = [
     'Hapoel Be\'er Sheva',
-    'Hapoel Haifa', 
+    'Hapoel Haifa',
     'Hapoel Jerusalem',
     'Maccabi Haifa',
     'Maccabi Tel Aviv',
@@ -50,17 +50,29 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
     'Hapoel Tel Aviv',
     'Bnei Sakhnin',
     'Ironi Tiberias',
-    'Maccabi Bnei Raina'
+    'Maccabi Bnei Raina',
+    'Hapoel Petah Tikva',
   ].sort()
 
   // Helper function to generate date from matchday number
   const getMatchDateFromMatchday = (matchday: number): string => {
+    // Validate matchday input
+    if (!matchday || isNaN(matchday) || matchday < 1 || matchday > 36) {
+      return new Date().toISOString().split('T')[0] // Return today's date as fallback
+    }
+
     // Season 2024/25 started approximately August 17, 2024
     // Assuming roughly one matchweek per week
     const seasonStart = new Date('2024-08-17')
     const weeksToAdd = matchday - 1
     const matchDate = new Date(seasonStart)
     matchDate.setDate(seasonStart.getDate() + (weeksToAdd * 7))
+
+    // Validate the resulting date
+    if (isNaN(matchDate.getTime())) {
+      return new Date().toISOString().split('T')[0] // Return today's date as fallback
+    }
+
     return matchDate.toISOString().split('T')[0] // Returns YYYY-MM-DD format
   }
 
@@ -139,8 +151,8 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
         const allMatchweeks = [...gpsMatchweeks, ...teamMatchweeks, ...csvMatchweeks]
         console.log('All Matchweeks before dedup:', allMatchweeks)
         
-        const uniqueMatchweeks = allMatchweeks.reduce((acc, current) => {
-          const existing = acc.find(item => item.matchweek === current.matchweek)
+        const uniqueMatchweeks = allMatchweeks.reduce((acc: any[], current: any) => {
+          const existing = acc.find((item: any) => item.matchweek === current.matchweek)
           if (!existing && current.matchweek !== 999) { // Exclude aggregated data from regular listings
             acc.push(current)
           }
@@ -209,7 +221,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
 
               // If CSV 2 is already uploaded, merge them (rename fields to opp_)
               if (csvData2.length > 0) {
-                const merged = mergeOpponentStatistics(processedData, csvData2).map(team => {
+                const merged = mergeOpponentStatistics(processedData, csvData2).map((team: any) => {
                   const {
                     our_avg_sequence_time,
                     our_long_ball_percentage,
@@ -271,7 +283,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
 
               // If CSV 2 is already uploaded, merge them (rename fields to opp_)
               if (csvData2.length > 0) {
-                const merged = mergeOpponentStatistics(processedData, csvData2).map(team => {
+                const merged = mergeOpponentStatistics(processedData, csvData2).map((team: any) => {
                   const {
                     our_avg_sequence_time,
                     our_long_ball_percentage,
@@ -561,8 +573,8 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
     setLoadingHistorical(true)
     try {
       // Get all team data and aggregate it
-      const allTeamData = []
-      const matchdayNumbers = [...new Set(existingMatchweeks.map(mw => mw.matchweek))]
+      const allTeamData: any[] = []
+      const matchdayNumbers = Array.from(new Set(existingMatchweeks.map((mw: any) => mw.matchweek)))
       
       for (const matchweek of matchdayNumbers) {
         try {
@@ -577,9 +589,9 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
 
       if (allTeamData.length > 0) {
         // Create aggregated data - average stats for each team across all matchdays
-        const teamAggregates = {}
-        
-        allTeamData.forEach(team => {
+        const teamAggregates: any = {}
+
+        allTeamData.forEach((team: any) => {
           const teamName = team.team_full_name
           if (!teamAggregates[teamName]) {
             teamAggregates[teamName] = {
@@ -673,7 +685,7 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
         marginBottom: '40px',
         gap: '20px' 
       }}>
-        {steps.map((step, index) => {
+        {steps.map((step, _index) => {
           const IconComponent = step.icon
           const isActive = currentStep === step.number
           const isCompleted = currentStep > step.number
@@ -770,7 +782,9 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
                       Matchday {matchweek.matchweek}
                     </h4>
                     <p style={{ color: 'var(--secondary-text)', margin: '0 0 12px 0', fontFamily: 'Montserrat', fontSize: '14px' }}>
-                      {new Date(matchweek.match_date).toLocaleDateString('en-GB')}
+                      {matchweek.match_date && !isNaN(new Date(matchweek.match_date).getTime())
+                        ? new Date(matchweek.match_date).toLocaleDateString('en-GB')
+                        : 'Date not available'}
                     </p>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' }}>
                       {matchweek.opponent && (
@@ -1641,7 +1655,9 @@ export default function MatchdayWizard({}: MatchdayWizardProps) {
                         Matchday {matchweek.matchweek}
                       </h4>
                       <p style={{ color: 'var(--secondary-text)', margin: '0 0 4px 0', fontFamily: 'Montserrat', fontSize: '12px' }}>
-                        {new Date(matchweek.match_date).toLocaleDateString('en-GB')}
+                        {matchweek.match_date && !isNaN(new Date(matchweek.match_date).getTime())
+                          ? new Date(matchweek.match_date).toLocaleDateString('en-GB')
+                          : 'Date not available'}
                       </p>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         {matchweek.opponent && (

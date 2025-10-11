@@ -242,7 +242,8 @@ export default function MatchdayReport({ csvData, matchdayNumber, isOpponentAnal
     return 0
   }
 
-  if (!beitarData) {
+  // Skip Beitar validation for opponent analysis mode
+  if (!beitarData && !isOpponentAnalysis) {
     return (
       <div style={{ padding: '20px', color: '#fff' }}>
         <p>No Beitar data found for Matchday {matchdayNumber}</p>

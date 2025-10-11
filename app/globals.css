@@ -157,6 +157,44 @@ body {
   z-index: 2;
   max-width: 1200px;
   margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%);
+  border: 2px solid #FFD700;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.header-team {
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #FFD700;
+  text-transform: uppercase;
+}
+
+.header-divider {
+  color: #FFD700;
+  font-weight: 300;
+  font-size: 2rem;
+}
+
+.header-platform {
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 1.8rem;
+  font-weight: 300;
+  letter-spacing: 2px;
+  color: #FFD700;
+  text-transform: uppercase;
 }
 
 .header h1 {
@@ -7035,13 +7073,17 @@ input[type="file"] {
 
 /* Navbar Layout Updates */
 .navbar-content {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
 }
 
-.navbar-left {
+.navbar-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -7050,6 +7092,7 @@ input[type="file"] {
 .navbar-right {
   display: flex;
   align-items: center;
+  margin-left: auto;
 }
 
 /* Developer Access Button in Navbar */

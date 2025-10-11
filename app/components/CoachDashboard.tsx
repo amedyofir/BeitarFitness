@@ -81,6 +81,11 @@ function MatchupAnalysisInterface() {
         const homeLBLW = getFieldPositionPlayers(leftTeamPlayers, ['LB', 'LW', 'LWB'])
         const awayRBRW = getFieldPositionPlayers(rightTeamPlayers, ['RB', 'RW', 'RWB'])
 
+        console.log('🔵 LEFT SIDE Selection:', {
+          homeLBLW: homeLBLW.map(p => ({ name: p.name, position: p.position, team: p.actual_team_name })),
+          awayRBRW: awayRBRW.map(p => ({ name: p.name, position: p.position, team: p.actual_team_name }))
+        })
+
         if (homeLBLW.length > 0 && awayRBRW.length > 0) {
           setSelectedPlayers([
             createPositionGroup(homeLBLW, `${leftTeam} Left Side`, 'LB+LW'),
@@ -180,7 +185,14 @@ function MatchupAnalysisInterface() {
 
     const filtered = players.filter(player => {
       const position = player.position?.toUpperCase() || ''
-      const matches = positions.some(pos => position.includes(pos.toUpperCase()))
+      // Use exact match or word boundary to avoid "RW" matching "FoRWard"
+      const matches = positions.some(pos => {
+        const posUpper = pos.toUpperCase()
+        // Check if position equals the target or contains it as a separate word
+        return position === posUpper ||
+               position.split(/[\s,/-]+/).includes(posUpper) ||
+               new RegExp(`\\b${posUpper}\\b`).test(position)
+      })
       if (matches) {
         console.log(`✅ Player ${player.name} (${player.position}) matches position ${positions}`)
       }
@@ -663,6 +675,7 @@ function MatchupAnalysisInterface() {
               (selectedUnit === 'def-vs-att' ? 'defense' : selectedUnit === 'att-vs-def' ? 'attack' : undefined) :
               (selectedUnit !== 'total' && selectedUnit !== 'left' && selectedUnit !== 'middle' && selectedUnit !== 'right' ? selectedUnit as any : undefined)
             }
+            selectedSideMatchup={comparisonMode === 'side-vs-side' && (selectedUnit === 'left' || selectedUnit === 'middle' || selectedUnit === 'right') ? selectedUnit : null}
             leftTeam={leftTeam}
             rightTeam={rightTeam || "Select Opponent Team"}
             assignedPositions={assignedPositions}

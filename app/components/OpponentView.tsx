@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Upload, FileText, PlayCircle, CheckCircle, AlertCircle, Users, Target } from 'lucide-react'
+import { Upload, FileText, CheckCircle, Users } from 'lucide-react'
 import Papa from 'papaparse'
 import MatchdayReport from './MatchdayReport'
-import { saveOpponentStatistics, fetchAvailableOpponents, fetchAvailableTeams, fetchAllTeamsData, fetchOpponentStatistics, fetchOpponentUploadHistory, checkOpponentDataExists, parseOpponentCsvRow, parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
+import { saveOpponentStatistics, fetchAvailableOpponents, fetchAllTeamsData, fetchOpponentStatistics, fetchOpponentUploadHistory, parseOpponentCsvRow, parseOurTeamMetricsCsvRow, mergeOpponentStatistics } from '@/lib/opponentDataService'
 import type { OpponentStatistics, OpponentMetadata } from '@/lib/opponentDataService'
 
 export default function OpponentView() {
@@ -18,10 +18,8 @@ export default function OpponentView() {
   const [showReport, setShowReport] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [existingOpponents, setExistingOpponents] = useState<any[]>([])
-  const [dataExists, setDataExists] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [loadingHistorical, setLoadingHistorical] = useState(false)
-  const [currentReportIndex, setCurrentReportIndex] = useState(0)
   const [totalMatchdays, setTotalMatchdays] = useState<number>(1)
   const [uploadHistory, setUploadHistory] = useState<any[]>([])
   const [selectedUploadDate, setSelectedUploadDate] = useState<string>('')
@@ -47,10 +45,9 @@ export default function OpponentView() {
   ].sort()
 
   const steps = [
-    { number: 1, title: 'Select Opponent', icon: Target },
-    { number: 2, title: 'Upload CSV', icon: Upload },
-    { number: 3, title: 'Generate Report', icon: FileText },
-    { number: 4, title: 'Complete', icon: CheckCircle }
+    { number: 1, title: 'Upload CSV', icon: Upload },
+    { number: 2, title: 'Generate Report', icon: FileText },
+    { number: 3, title: 'Complete', icon: CheckCircle }
   ]
 
   useEffect(() => {
@@ -68,7 +65,7 @@ export default function OpponentView() {
           setOpponentName('All Teams')  // Generic name since showing all teams
           setSelectedOpponent('')  // Empty = "All Teams" selected in dropdown
           setShowReport(true)
-          setCurrentStep(4)
+          setCurrentStep(3)
 
           // Also fetch opponents list for the carousel
           const opponents = await fetchAvailableOpponents()
@@ -84,14 +81,6 @@ export default function OpponentView() {
     loadDataFromDatabase()
   }, [])
 
-  const handleOpponentSubmit = async () => {
-    if (opponentName) {
-      // Check if data already exists for this opponent
-      const exists = await checkOpponentDataExists(opponentName)
-      setDataExists(exists)
-      setCurrentStep(2)
-    }
-  }
 
   const handleCsv1Upload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -120,7 +109,7 @@ export default function OpponentView() {
             if (csvData2.length > 0) {
               const merged = mergeOpponentStatistics(processedData, csvData2)
               setCsvData(merged)
-              setCurrentStep(3)
+              setCurrentStep(2)
             }
           },
           error: (error: any) => {
@@ -161,7 +150,7 @@ export default function OpponentView() {
             if (csvData1.length > 0) {
               const merged = mergeOpponentStatistics(csvData1, processedData)
               setCsvData(merged)
-              setCurrentStep(3)
+              setCurrentStep(2)
             }
           },
           error: (error: any) => {
@@ -178,51 +167,41 @@ export default function OpponentView() {
   const generateReport = async () => {
     setIsProcessing(true)
     setSaveError(null)
-    
+
     try {
+      // Use "All Teams" as default opponent name if none selected
+      const finalOpponentName = opponentName || 'All Teams'
+
       // Handle opponent statistics data (aggregated across all matchdays)
       const opponentData: OpponentStatistics[] = csvData.map((row: any) => ({
         ...row,
-        opponent_name: opponentName,
+        opponent_name: finalOpponentName,
         season: '2025-2026',
         total_matchdays: totalMatchdays
       }))
 
       // Prepare opponent metadata
       const opponentMetadata: OpponentMetadata = {
-        opponent_name: opponentName,
+        opponent_name: finalOpponentName,
         season: '2025-2026',
         csv_filename: `${csvFile1?.name || 'file1.csv'} + ${csvFile2?.name || 'file2.csv'}`,
         total_teams: opponentData.length,
         total_matchdays: totalMatchdays,
-        notes: `Aggregated opponent analysis for ${opponentName} across ${totalMatchdays} matchdays (2 CSV files merged)`
+        notes: `Aggregated opponent analysis for ${finalOpponentName} across ${totalMatchdays} matchdays (2 CSV files merged)`
       }
 
       // Save opponent data to Supabase (overwrites existing)
       await saveOpponentStatistics(opponentData, opponentMetadata)
       console.log('Successfully saved opponent statistics to Supabase')
 
-      // Reload data from database to show the first team
-      try {
-        const teams = await fetchAvailableTeams()
-        if (teams.length > 0) {
-          const firstTeam = teams[0]
-          const data = await fetchOpponentStatistics(firstTeam)
+      // Set the opponent name and show the data immediately
+      setOpponentName(finalOpponentName)
+      setShowReport(true)
+      setCurrentStep(3)
 
-          if (data && data.length > 0) {
-            setCsvData(data)
-            setOpponentName(firstTeam)
-            setShowReport(true)
-            setCurrentStep(4)
-          }
-        }
-
-        // Update opponents list for carousel
-        const updatedOpponents = await fetchAvailableOpponents()
-        setExistingOpponents(updatedOpponents)
-      } catch (fetchError) {
-        console.log('Note: Could not reload data, but save was successful')
-      }
+      // Update opponents list for carousel
+      const updatedOpponents = await fetchAvailableOpponents()
+      setExistingOpponents(updatedOpponents)
 
       setIsProcessing(false)
     } catch (error) {
@@ -242,10 +221,8 @@ export default function OpponentView() {
     setCsvData([])
     setIsProcessing(false)
     setShowReport(false)
-    setDataExists(false)
     setSaveError(null)
     setLoadingHistorical(false)
-    setCurrentReportIndex(0)
     setTotalMatchdays(1)
     setShowUploadWizard(false)
   }
@@ -266,7 +243,7 @@ export default function OpponentView() {
         setOpponentName(opponent)
         setSelectedUploadDate(targetUploadDate || '')
         setShowReport(true)
-        setCurrentStep(4)
+        setCurrentStep(3)
       } else {
         alert('No data found for this opponent')
       }
@@ -293,17 +270,6 @@ export default function OpponentView() {
     setLoadingHistorical(false)
   }
 
-  const nextReport = () => {
-    setCurrentReportIndex((prev) => (prev + 1) % existingOpponents.length)
-  }
-
-  const prevReport = () => {
-    setCurrentReportIndex((prev) => (prev - 1 + existingOpponents.length) % existingOpponents.length)
-  }
-
-  const goToReport = (index: number) => {
-    setCurrentReportIndex(index)
-  }
 
   return (
     <div className="wizard-container" style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
@@ -343,13 +309,13 @@ export default function OpponentView() {
         marginBottom: '40px',
         gap: '20px' 
       }}>
-        {steps.map((step, index) => {
+        {steps.map((step) => {
           const IconComponent = step.icon
           const isActive = currentStep === step.number
           const isCompleted = currentStep > step.number
-          
+
           return (
-            <div 
+            <div
               key={step.number}
               style={{
                 display: 'flex',
@@ -522,158 +488,15 @@ export default function OpponentView() {
       {/* Step Content */}
       {showUploadWizard && !showReport && (
       <div className="glass-card" style={{ padding: '30px', minHeight: '300px' }}>
-        {/* Step 1: Select Opponent */}
+        {/* Step 1: Upload CSVs */}
         {currentStep === 1 && (
-          <div style={{ textAlign: 'center' }}>
-            <h3 style={{ color: 'var(--primary-text)', marginBottom: '20px', fontFamily: 'Montserrat' }}>
-              Select Opponent for Analysis
-            </h3>
-            <p style={{ color: 'var(--secondary-text)', marginBottom: '30px', fontFamily: 'Montserrat' }}>
-              Choose the opponent team to analyze. Upload aggregated data across all matchdays.
-            </p>
-            
-            {/* Show existing opponents */}
-            {existingOpponents.length > 0 && (
-              <div style={{
-                background: 'rgba(255, 215, 0, 0.05)',
-                border: '1px solid rgba(255, 215, 0, 0.2)',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '20px',
-                maxWidth: '400px',
-                margin: '0 auto 20px'
-              }}>
-                <p style={{ color: '#FFD700', fontSize: '12px', marginBottom: '8px', fontFamily: 'Montserrat' }}>
-                  Previously Analyzed Opponents:
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                  {existingOpponents.map(opp => (
-                    <span key={opp.opponent_name} style={{
-                      background: 'rgba(255, 215, 0, 0.1)',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      color: 'var(--primary-text)',
-                      fontFamily: 'Montserrat'
-                    }}>
-                      {opp.opponent_name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div style={{ maxWidth: '400px', margin: '0 auto', marginBottom: '30px' }}>
-              <select
-                value={opponentName}
-                onChange={(e) => setOpponentName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 215, 0, 0.3)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--primary-text)',
-                  fontSize: '14px',
-                  fontFamily: 'Montserrat',
-                  marginBottom: '16px',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="" style={{ background: '#1a1a1a', color: 'var(--primary-text)' }}>
-                  Select opponent team
-                </option>
-                {israeliClubs.map(club => (
-                  <option 
-                    key={club} 
-                    value={club}
-                    style={{ background: '#1a1a1a', color: 'var(--primary-text)' }}
-                  >
-                    {club}
-                  </option>
-                ))}
-              </select>
-              
-              <input
-                type="number"
-                min="1"
-                max="38"
-                value={totalMatchdays}
-                onChange={(e) => setTotalMatchdays(parseInt(e.target.value) || 1)}
-                placeholder="Number of matchdays"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 215, 0, 0.3)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--primary-text)',
-                  fontSize: '16px',
-                  fontFamily: 'Montserrat',
-                  textAlign: 'center',
-                  marginBottom: '16px'
-                }}
-              />
-              <p style={{ 
-                color: 'var(--secondary-text)', 
-                fontSize: '12px', 
-                fontFamily: 'Montserrat',
-                fontStyle: 'italic' 
-              }}>
-                Enter the total number of matchdays this data represents
-              </p>
-            </div>
-            
-            <button
-              onClick={handleOpponentSubmit}
-              disabled={!opponentName}
-              style={{
-                background: opponentName
-                  ? 'linear-gradient(135deg, #FFD700, #FFA500)' 
-                  : 'rgba(255, 255, 255, 0.1)',
-                color: opponentName ? '#000' : 'var(--secondary-text)',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                fontFamily: 'Montserrat',
-                fontWeight: '600',
-                cursor: opponentName ? 'pointer' : 'not-allowed',
-                fontSize: '14px'
-              }}
-            >
-              Continue to CSV Upload
-            </button>
-          </div>
-        )}
-
-        {/* Step 2: Upload CSVs */}
-        {currentStep === 2 && (
           <div style={{ textAlign: 'center' }}>
             <h3 style={{ color: 'var(--primary-text)', marginBottom: '20px', fontFamily: 'Montserrat' }}>
               Upload Opponent Data CSVs
             </h3>
             <p style={{ color: 'var(--secondary-text)', marginBottom: '30px', fontFamily: 'Montserrat' }}>
-              Upload 2 CSV files for {opponentName} analysis: Opponent metrics & Our team metrics
+              Upload 2 CSV files containing all teams data: Opponent metrics & Our team metrics
             </p>
-
-            {dataExists && (
-              <div style={{
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}>
-                <AlertCircle size={16} color="#22c55e" />
-                <p style={{ color: '#22c55e', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  Previous uploads exist for {opponentName}. New upload will be saved as a new version.
-                </p>
-              </div>
-            )}
 
             {csvData.length > 0 && (
               <div style={{
@@ -798,16 +621,78 @@ export default function OpponentView() {
           </div>
         )}
 
-        {/* Step 3: Generate Report */}
-        {currentStep === 3 && (
+        {/* Step 2: Generate Report */}
+        {currentStep === 2 && (
           <div style={{ textAlign: 'center' }}>
             <h3 style={{ color: 'var(--primary-text)', marginBottom: '20px', fontFamily: 'Montserrat' }}>
               Generate Opponent Analysis
             </h3>
             <p style={{ color: 'var(--secondary-text)', marginBottom: '30px', fontFamily: 'Montserrat' }}>
-              Ready to generate comprehensive opponent analysis for {opponentName}
+              Select a primary opponent name and specify matchdays
             </p>
-            
+
+            <div style={{ maxWidth: '400px', margin: '0 auto', marginBottom: '30px' }}>
+              <select
+                value={opponentName}
+                onChange={(e) => setOpponentName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--primary-text)',
+                  fontSize: '14px',
+                  fontFamily: 'Montserrat',
+                  marginBottom: '16px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="" style={{ background: '#1a1a1a', color: 'var(--primary-text)' }}>
+                  Select primary opponent (optional)
+                </option>
+                {israeliClubs.map(club => (
+                  <option
+                    key={club}
+                    value={club}
+                    style={{ background: '#1a1a1a', color: 'var(--primary-text)' }}
+                  >
+                    {club}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                min="1"
+                max="38"
+                value={totalMatchdays}
+                onChange={(e) => setTotalMatchdays(parseInt(e.target.value) || 1)}
+                placeholder="Number of matchdays"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--primary-text)',
+                  fontSize: '16px',
+                  fontFamily: 'Montserrat',
+                  textAlign: 'center',
+                  marginBottom: '16px'
+                }}
+              />
+              <p style={{
+                color: 'var(--secondary-text)',
+                fontSize: '12px',
+                fontFamily: 'Montserrat',
+                fontStyle: 'italic',
+                marginBottom: '20px'
+              }}>
+                Enter the total number of matchdays this data represents
+              </p>
+            </div>
+
             <div style={{ marginBottom: '30px' }}>
               <div style={{
                 background: 'rgba(255, 215, 0, 0.1)',
@@ -817,27 +702,25 @@ export default function OpponentView() {
                 marginBottom: '20px'
               }}>
                 <h4 style={{ color: '#FFD700', marginBottom: '10px', fontFamily: 'Montserrat' }}>
-                  Analysis Details
+                  Upload Summary
                 </h4>
                 <p style={{ color: 'var(--primary-text)', fontSize: '14px', fontFamily: 'Montserrat' }}>
-                  Opponent: {opponentName}<br />
+                  Primary Opponent: {opponentName || 'All Teams'}<br />
                   CSV File 1: {csvFile1?.name}<br />
                   CSV File 2: {csvFile2?.name}<br />
-                  Data Type: Merged Team Statistics (Opponent + Our Team)<br />
-                  Teams: {csvData.length}<br />
+                  Total Teams: {csvData.length}<br />
                   Matchdays: {totalMatchdays}<br />
-                  Season: 2025-2026<br />
-                  Action: {dataExists ? 'Will save as new version (history preserved)' : 'Will create new analysis'}
+                  Season: 2025-2026
                 </p>
               </div>
             </div>
-            
+
             <button
               onClick={generateReport}
               disabled={isProcessing}
               style={{
-                background: isProcessing 
-                  ? 'rgba(255, 255, 255, 0.1)' 
+                background: isProcessing
+                  ? 'rgba(255, 255, 255, 0.1)'
                   : 'linear-gradient(135deg, #FFD700, #FFA500)',
                 color: isProcessing ? 'var(--secondary-text)' : '#000',
                 border: 'none',
@@ -851,7 +734,7 @@ export default function OpponentView() {
             >
               {isProcessing ? 'Saving & Generating Analysis...' : 'Save & Generate Analysis'}
             </button>
-            
+
             {saveError && (
               <div style={{
                 background: 'rgba(239, 68, 68, 0.1)',
@@ -868,8 +751,8 @@ export default function OpponentView() {
           </div>
         )}
 
-        {/* Step 4: Complete */}
-        {currentStep === 4 && (
+        {/* Step 3: Complete */}
+        {currentStep === 3 && (
           <div style={{ textAlign: 'center' }}>
             <CheckCircle size={64} color="#22c55e" style={{ marginBottom: '20px' }} />
             <h3 style={{ color: 'var(--primary-text)', marginBottom: '20px', fontFamily: 'Montserrat' }}>

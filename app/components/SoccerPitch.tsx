@@ -16,6 +16,7 @@ interface SoccerPitchProps {
   on1v1Selection?: (players: MatchupPlayer[]) => void
   onSideSelection?: (side: 'top' | 'middle' | 'bottom') => void
   selectedSide?: 'top' | 'middle' | 'bottom' | null
+  selectedSideMatchup?: 'left' | 'middle' | 'right' | null
   leftTeam?: string
   rightTeam?: string
 }
@@ -38,6 +39,7 @@ export default function SoccerPitch({
   on1v1Selection,
   onSideSelection,
   selectedSide = null,
+  selectedSideMatchup = null,
   leftTeam = '',
   rightTeam = ''
 }: SoccerPitchProps) {
@@ -131,14 +133,32 @@ export default function SoccerPitch({
       return true
     }
 
-    // In side-vs-side mode, check for side selection
+    // In side-vs-side mode, only show selected players (those involved in the matchup)
     if (comparisonMode === 'side-vs-side') {
+      // If we have selected players, only show those (check by player name and team for reliability)
+      if (selectedPlayers.length > 0) {
+        // Skip placeholders - they should always be dimmed
+        if (player.id.includes('placeholder')) {
+          return false
+        }
+
+        // For middle matchup, show all midfielders (not just selected ones)
+        if (selectedSideMatchup === 'middle' && player.unit === 'midfield') {
+          return true
+        }
+
+        // For other positions, match by player name and team, or by ID
+        return selectedPlayers.some(sp =>
+          (sp.name === player.name && sp.actual_team_name === player.actual_team_name) ||
+          sp.id === player.id
+        )
+      }
+      // Fallback to side-based visibility if selectedSide is set
       if (selectedSide) {
-        // Show only positions relevant to the selected side
         const relevantPositions = getPositionsForSide(selectedSide, player.team)
         return relevantPositions.includes(positionName)
       }
-      return true // If no side selected, show all
+      return true // If no selection, show all
     }
 
     // In 1v1 mode, only selected players are visible

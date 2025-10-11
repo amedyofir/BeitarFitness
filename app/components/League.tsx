@@ -121,8 +121,8 @@ export default function League() {
               'Hapoel Haifa',
               'Ironi Kiryat Shmona',
               'Bnei Sakhnin',
-              'Maccabi Bnei Raina'
-            ]
+              'Maccabi Bnei Raina',
+              'Hapoel Petah Tikva',            ]
             setAvailableTeams(predefinedOpponents)
 
             setIsProcessing(false)

@@ -1,10 +1,13 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
-import { TrendingUp, Upload } from 'lucide-react'
+import React, { useMemo, useState, useRef } from 'react'
+import { TrendingUp, Upload, FileDown } from 'lucide-react'
 import Papa from 'papaparse'
 import ComprehensiveMatchdayReport from './ComprehensiveMatchdayReport'
 import { supabase } from '../../lib/supabase'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 interface RunningSeasonReportProps {
   runningData: any[]
@@ -14,6 +17,7 @@ interface RunningSeasonReportProps {
 export default function RunningSeasonReport({ runningData, onDataUpload }: RunningSeasonReportProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedOpponent, setSelectedOpponent] = useState('')
+  const exportRef = useRef<HTMLDivElement>(null)
 
   const availableTeams = [
     'Hapoel Be\'er Sheva',
@@ -28,6 +32,7 @@ export default function RunningSeasonReport({ runningData, onDataUpload }: Runni
     'Bnei Sakhnin',
     'Maccabi Bnei Raina',
     'Hapoel Petah Tikva',
+    'Hapoel Petah Tikva\\',
   ]
 
   // Fetch player profile pictures from opta_player_object
@@ -138,6 +143,104 @@ export default function RunningSeasonReport({ runningData, onDataUpload }: Runni
     if (!runningData || runningData.length === 0) return []
     return runningData
   }, [runningData])
+
+  const handleDownloadPDF = async () => {
+    if (!exportRef.current) return
+
+    try {
+      window.scrollTo(0, 0)
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      const element = exportRef.current
+      const scale = 1.5
+
+      // Find the "All Teams Half-Time Breakdown" section - split AFTER this table
+      const allHeadings = element.querySelectorAll('h2')
+      let halfTimeBreakdownHeading: HTMLElement | null = null
+
+      allHeadings.forEach((heading: any) => {
+        if (heading.textContent.includes('All Teams Half-Time Breakdown')) {
+          halfTimeBreakdownHeading = heading
+        }
+      })
+
+      if (!halfTimeBreakdownHeading) {
+        throw new Error('Could not find Half-Time Breakdown section')
+      }
+
+      // Find the table after this heading and get its bottom position
+      let currentElement: HTMLElement | null = halfTimeBreakdownHeading.nextElementSibling as HTMLElement
+      while (currentElement && currentElement.tagName !== 'DIV') {
+        currentElement = currentElement.nextElementSibling as HTMLElement
+      }
+
+      // Get the bottom of the table div
+      const tableBottom = currentElement
+        ? currentElement.offsetTop + currentElement.offsetHeight + 50 // Add 50px padding
+        : halfTimeBreakdownHeading.offsetTop + 1000
+
+      const splitPoint = tableBottom
+      const totalWidth = element.scrollWidth
+
+      console.log('Split point found at:', splitPoint, 'after Half-Time Breakdown table')
+
+      // PAGE 1: FCBJ DATA until Half-Time Breakdown table
+      console.log('Capturing page 1...')
+      const canvas1 = await html2canvas(element, {
+        scale: scale,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#000000',
+        windowHeight: splitPoint + 100,
+        height: splitPoint
+      })
+
+      console.log('Page 1 canvas:', canvas1.width, 'x', canvas1.height)
+
+      // Create PDF with page 1 dimensions
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas1.width, canvas1.height],
+        compress: true
+      })
+
+      const imgData1 = canvas1.toDataURL('image/png', 0.95)
+      pdf.addImage(imgData1, 'PNG', 0, 0, canvas1.width, canvas1.height, undefined, 'FAST')
+
+      // PAGE 2: Beitar Players till end
+      console.log('Capturing page 2...')
+      const remainingHeight = element.scrollHeight - splitPoint
+
+      const canvas2 = await html2canvas(element, {
+        scale: scale,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#000000',
+        y: splitPoint,
+        scrollY: -splitPoint,
+        windowHeight: remainingHeight + 500,
+        height: remainingHeight + 500
+      })
+
+      console.log('Page 2 canvas:', canvas2.width, 'x', canvas2.height)
+
+      // Add page 2 with its own dimensions
+      pdf.addPage([canvas2.width, canvas2.height], 'portrait')
+
+      const imgData2 = canvas2.toDataURL('image/png', 0.95)
+      pdf.addImage(imgData2, 'PNG', 0, 0, canvas2.width, canvas2.height, undefined, 'FAST')
+
+      pdf.save(`Season-Aggregated-Report-${selectedOpponent || 'All-Teams'}.pdf`)
+
+      console.log('PDF saved successfully')
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
 
   if (runningData.length === 0) {
     return (
@@ -277,15 +380,38 @@ export default function RunningSeasonReport({ runningData, onDataUpload }: Runni
         >
           ← Upload New Data
         </button>
+
+        <button
+          onClick={handleDownloadPDF}
+          style={{
+            background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+            color: '#000',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            fontFamily: 'Montserrat',
+            fontWeight: '600'
+          }}
+        >
+          <FileDown size={16} />
+          Download PDF
+        </button>
       </div>
 
-      <ComprehensiveMatchdayReport
-        runningData={seasonData}
-        matchdayNumber="Season"
-        selectedOpponent={selectedOpponent || "All Teams"}
-        isSeasonReport={true}
-        highlightOpponent={selectedOpponent}
-      />
+      <div ref={exportRef}>
+        <ComprehensiveMatchdayReport
+          runningData={seasonData}
+          matchdayNumber="Season"
+          selectedOpponent={selectedOpponent || "All Teams"}
+          isSeasonReport={true}
+          highlightOpponent={selectedOpponent || undefined}
+        />
+      </div>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Calendar, RefreshCw, AlertCircle, Download, Filter, Users, Trophy, Target } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import { CSVReportService } from '../../lib/csvReportService'
+import { supabase } from '../../lib/supabase'
 
 interface PlayerAggregateData {
   player: string
@@ -140,7 +141,16 @@ export default function TopPlayersReport() {
 
       const aggregatedData = result.data.aggregatedData
       const playersOnly = aggregatedData.filter((item: any) => item.Position !== 'TEAM')
-      
+
+      // Fetch real_position from opta_player_object table
+      const { data: optaPlayers, error: optaError } = await supabase
+        .from('opta_player_object')
+        .select('playerId, real_position, FullName')
+
+      if (optaError) {
+        console.error('Error fetching player positions:', optaError)
+      }
+
       // Process player data with 90-minute normalization
       const processedPlayers: PlayerAggregateData[] = playersOnly.map((player: any) => {
         // Calculate TOTAL minutes across all matches (average * matches played)
@@ -161,12 +171,19 @@ export default function TopPlayersReport() {
         
         // Maximum speed (not average)
         const maxSpeed = player.TopSpeed || (typeof player.KMHSPEED === 'string' ? parseFloat(player.KMHSPEED) : (player.KMHSPEED || 0))
-        
+
+        // Match with opta_player_object to get real_position
+        const playerFullName = player.playerFullName || player.Player
+        const optaPlayer = optaPlayers?.find(op =>
+          op.FullName === playerFullName ||
+          op.FullName?.toLowerCase() === playerFullName?.toLowerCase()
+        )
+
         return {
           player: player.Player,
-          playerFullName: player.playerFullName || player.Player,
+          playerFullName: playerFullName,
           team: player.teamName || player.newestTeam || 'Unknown',
-          position: player.Position || player.pos || 'Unknown',
+          position: optaPlayer?.real_position || player.Position || player.pos || 'Unknown',
           totalMinutes,  // This is now TOTAL minutes across all matches
           totalMatches: player.matchesPlayed || 0,
           totalDistance: avgDistancePerMatch * matchesPlayed,  // Total distance across all matches
@@ -181,11 +198,11 @@ export default function TopPlayersReport() {
         }
       })
 
-      // Calculate ALMOG scores (40% intensity, 30% speed, 30% distance)
+      // Calculate ALMOG scores (50% intensity, 40% distance, 10% speed)
       const distances = processedPlayers.map(p => p.normalizedDistance).filter(d => d > 0)
       const intensities = processedPlayers.map(p => p.intensity).filter(i => i > 0)
       const speeds = processedPlayers.map(p => p.averageSpeed).filter(s => s > 0)
-      
+
       const minDistance = Math.min(...distances)
       const maxDistance = Math.max(...distances)
       const minIntensity = Math.min(...intensities)
@@ -194,14 +211,14 @@ export default function TopPlayersReport() {
       const maxSpeed = Math.max(...speeds)
 
       processedPlayers.forEach(player => {
-        const distanceScore = maxDistance > minDistance ? 
+        const distanceScore = maxDistance > minDistance ?
           ((player.normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100 : 50
-        const intensityScore = maxIntensity > minIntensity ? 
+        const intensityScore = maxIntensity > minIntensity ?
           ((player.intensity - minIntensity) / (maxIntensity - minIntensity)) * 100 : 50
-        const speedScore = maxSpeed > minSpeed ? 
+        const speedScore = maxSpeed > minSpeed ?
           ((player.averageSpeed - minSpeed) / (maxSpeed - minSpeed)) * 100 : 50
-        
-        player.almogScore = (intensityScore * 0.4) + (speedScore * 0.3) + (distanceScore * 0.3)
+
+        player.almogScore = (intensityScore * 0.5) + (distanceScore * 0.4) + (speedScore * 0.1)
       })
 
       // Extract unique teams, positions, and matchdays for filters
@@ -287,20 +304,20 @@ export default function TopPlayersReport() {
 
   const loadFilteredTopPlayers = async () => {
     if (!playersData) return
-    
+
     try {
       // Get all reports for the season
       const result = await CSVReportService.getAllReports()
-      
+
       if (!result.success || !result.data) {
         return
       }
 
       // Filter reports by season and selected matchdays
       let filteredReports = result.data.filter(report => report.season === selectedSeason)
-      
+
       if (selectedMatchdays.length > 0) {
-        filteredReports = filteredReports.filter(report => 
+        filteredReports = filteredReports.filter(report =>
           selectedMatchdays.includes(report.matchday_number.toString())
         )
       }
@@ -308,6 +325,15 @@ export default function TopPlayersReport() {
       if (filteredReports.length === 0) {
         setFilteredPlayers([])
         return
+      }
+
+      // Fetch real_position from opta_player_object table
+      const { data: optaPlayers, error: optaError } = await supabase
+        .from('opta_player_object')
+        .select('playerId, real_position, FullName')
+
+      if (optaError) {
+        console.error('Error fetching player positions:', optaError)
       }
 
       // Aggregate player data from filtered reports
@@ -324,13 +350,20 @@ export default function TopPlayersReport() {
           
           players.forEach((player: any) => {
             const key = `${player.Player}_${player.teamName || player.newestTeam || 'Unknown'}`
-            
+
             if (!playerAggregates[key]) {
+              // Match with opta_player_object to get real_position
+              const playerFullName = player.playerFullName || player.Player
+              const optaPlayer = optaPlayers?.find(op =>
+                op.FullName === playerFullName ||
+                op.FullName?.toLowerCase() === playerFullName?.toLowerCase()
+              )
+
               playerAggregates[key] = {
                 player: player.Player,
-                playerFullName: player.playerFullName || player.Player,
+                playerFullName: playerFullName,
                 team: player.teamName || player.newestTeam || 'Unknown',
-                position: player.Position || player.pos || 'Unknown',
+                position: optaPlayer?.real_position || player.Position || player.pos || 'Unknown',
                 totalMinutes: 0,
                 totalMatches: 0,
                 totalDistance: 0,
@@ -406,12 +439,12 @@ export default function TopPlayersReport() {
         processedPlayers.forEach(player => {
           const distanceScore = maxDistance > minDistance ? 
             ((player.normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100 : 50
-          const intensityScore = maxIntensity > minIntensity ? 
+          const intensityScore = maxIntensity > minIntensity ?
             ((player.intensity - minIntensity) / (maxIntensity - minIntensity)) * 100 : 50
-          const speedScore = maxSpeed > minSpeed ? 
+          const speedScore = maxSpeed > minSpeed ?
             ((player.averageSpeed - minSpeed) / (maxSpeed - minSpeed)) * 100 : 50
-          
-          player.almogScore = (intensityScore * 0.4) + (speedScore * 0.3) + (distanceScore * 0.3)
+
+          player.almogScore = (intensityScore * 0.5) + (distanceScore * 0.4) + (speedScore * 0.1)
         })
       }
 
